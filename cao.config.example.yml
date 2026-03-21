@@ -1,0 +1,23 @@
+# cao.config.yml — Claude Agents Orchestrator
+#
+# Copy this file to cao.config.yml in your project root and customize.
+# Commit cao.config.yml to your repo — it contains no secrets.
+#
+# Usage: agents read this file to know where and how to deploy your project.
+
+# ── Deployment ────────────────────────────────────────────────────────────────
+deploy:
+  platform: railway       # Options: railway | render | vercel | none
+  project: my-project     # Project name on the platform
+  service: web            # Service / app name within the project
+
+# ── GitHub ────────────────────────────────────────────────────────────────────
+# github:
+#   default_branch: dev   # Branch agents merge into (default: dev)
+#   pr_reviewers: []      # GitHub usernames to auto-request review from
+
+# ── Agent behaviour ───────────────────────────────────────────────────────────
+# agents:
+#   require_ci_pass: true      # Block merge if GitHub Actions checks fail
+#   enrichment_model: sonnet   # Model for team-lead agent
+#   dev_model: sonnet          # Model for dev agent

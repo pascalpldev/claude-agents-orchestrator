@@ -255,6 +255,43 @@ If using Railway, configure the MCP in `~/.claude/.mcp.json` (never in this repo
 
 ---
 
+## MCP configuration
+
+Agents use the **GitHub MCP** and optionally the **Railway MCP** instead of `gh` CLI. Configure both in `~/.claude/.mcp.json` (local only, never committed):
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_TOKEN_HERE" }
+    },
+    "railway": {
+      "command": "npx",
+      "args": ["@railway/mcp"],
+      "env": { "RAILWAY_API_TOKEN": "YOUR_TOKEN_HERE" }
+    }
+  }
+}
+```
+
+The Railway block is optional — omit it if you don't use Railway.
+
+### Why MCP instead of `gh` CLI?
+
+| | GitHub MCP | `gh` CLI |
+|---|---|---|
+| Structured data | Returns typed objects | Returns text to parse |
+| Reliability | No shell escaping issues | Fragile with special characters |
+| Composability | Works inside any agent | Requires a bash context |
+| PR creation | `create_pull_request` | `gh pr create` |
+| Search | `search_code` across the repo | `gh search code` |
+
+SETUP.sh still uses `gh` CLI for label creation — that runs outside of agents, where MCP is not available.
+
+---
+
 ## Troubleshooting
 
 **Ticket stuck in `enriching` or `dev-in-progress`**

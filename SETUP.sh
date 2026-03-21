@@ -30,7 +30,27 @@ git checkout -b dev 2>/dev/null || git checkout dev
 git push -u origin dev 2>/dev/null || echo "Branch dev already exists"
 echo -e "${GREEN}✅ Branches ready${NC}"
 
-# 3. Info
+# 3. Create cao.config.yml if it doesn't exist
+if [ ! -f cao.config.yml ]; then
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  if [ -f "$SCRIPT_DIR/cao.config.example.yml" ]; then
+    cp "$SCRIPT_DIR/cao.config.example.yml" cao.config.yml
+    echo -e "${GREEN}✅ cao.config.yml created — edit it to configure your deploy platform${NC}"
+  else
+    cat > cao.config.yml << 'EOF'
+# cao.config.yml — Claude Agents Orchestrator
+deploy:
+  platform: none      # Options: railway | render | vercel | none
+  project: ""
+  service: ""
+EOF
+    echo -e "${GREEN}✅ cao.config.yml created${NC}"
+  fi
+else
+  echo -e "${GREEN}✅ cao.config.yml already exists${NC}"
+fi
+
+# 4. Info
 echo ""
 echo -e "${GREEN}✅ Claude Agents Orchestrator setup complete!${NC}"
 echo ""

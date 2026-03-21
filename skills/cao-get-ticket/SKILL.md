@@ -26,23 +26,24 @@ Load a GitHub ticket with fresh context from GitHub. Perfect for discussing with
 
 ## What this does
 
-1. **Detect current project** from `git remote get-url origin` (works with any repo)
-2. **Fetch the ticket** from GitHub using `gh issue view` (fresh data)
-3. **Confirm which ticket** you meant
+1. **Detect current project** from `git remote get-url origin` — extract OWNER and REPO
+2. **Fetch the ticket** using GitHub MCP:
+   - If argument is `#N` or a number: use `issue_read` (owner: $OWNER, repo: $REPO, issue_number: N)
+   - If argument is a label name (e.g. "enrichment"): use `list_issues` filtered by label
+   - If argument is a text search: use `list_issues` and match title
+3. **Confirm which ticket** if ambiguous
 4. **Show full context**: title, body, recent comments, current labels
-5. **Position as team-lead** so you can discuss directly here
-6. When you say "ok, enrichis", post to GitHub and change labels automatically
+5. **Position as team-lead** ready to discuss
+6. When you say "ok, enrichis", trigger enrichment via the automated workflow
 
 ## Implementation
 
-The skill:
-1. Parses the input: `$ARGUMENTS`
-2. Detects the current GitHub repo automatically via `git remote`
-3. Uses `gh issue view` or `gh issue list` to fetch the ticket(s)
-4. Confirms with you which ticket
-5. Displays the content
-6. Positions Claude as team-lead ready to discuss
-7. When you approve, it enriches via the automated workflow
+1. Parse the input: `$ARGUMENTS`
+2. Detect OWNER/REPO from `git remote get-url origin`
+3. Fetch ticket via GitHub MCP `issue_read` or `list_issues`
+4. Display content
+5. Position Claude as team-lead ready to discuss
+6. When approved, trigger enrichment via the automated workflow
 
 ## Example
 

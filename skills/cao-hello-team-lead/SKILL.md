@@ -19,12 +19,12 @@ At the start of a session, call this to get full context of the project.
 
 ## What it does
 
-1. **Detect current project** from `git remote get-url origin`
+1. **Detect current project** from `git remote get-url origin` — extract OWNER and REPO
 2. **Read project CLAUDE.md** for architecture context
-3. **Fetch project state from GitHub:**
-   - Open tickets by label (to-enrich, enriched, to-dev, to-test, deployed)
-   - Recent comments and feedback
-   - Current branch status
+3. **Fetch project state from GitHub** using GitHub MCP `list_issues`:
+   - owner: $OWNER, repo: $REPO, state: open
+   - Group by label: to-enrich, enriched, to-dev, to-test, deployed
+   - Load recent comments for tickets in enriched/to-test states (for feedback context)
 
 4. **Display summary:**
    ```
@@ -73,8 +73,8 @@ At the start of a session, call this to get full context of the project.
 ## Context it loads
 
 - CLAUDE.md (project architecture)
-- Git log (recent changes)
-- All open GitHub issues + comments
+- Git log (recent changes, via bash)
+- All open GitHub issues + comments (via GitHub MCP list_issues + issue_read)
 - Labels and assignments
 
 This is your **daily ritual** to stay synchronized with the project.

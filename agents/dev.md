@@ -33,13 +33,31 @@ _log "$RUN_ID" "dev" "$TICKET_N" "start" "started" \
   "ticket #${TICKET_N} — ${TICKET_TITLE}" '{"trigger":"dev"}'
 ```
 
+### 0.5. Detect project + load config
+
+Extract owner and repo from git remote — required for all GitHub MCP calls:
+
+```bash
+REMOTE=$(git remote get-url origin 2>/dev/null)
+OWNER=$(echo "$REMOTE" | sed 's|.*github\.com[:/]||' | cut -d'/' -f1)
+REPO=$(echo "$REMOTE" | sed 's|.*github\.com[:/]||' | cut -d'/' -f2 | sed 's|\.git$||')
+```
+
+Read `cao.config.yml` at the repo root if it exists — extract `deploy.platform`, `deploy.project`, `deploy.service`. If absent or `platform: none`, skip all deploy steps.
+
 ### 1. Load context
 
 Read in this order:
-1. The ticket: `gh issue view <N> --comments`
-2. `CLAUDE.md` at the project root
-3. The enrichment plan from the ticket comments
-4. Only the files mentioned in the plan — do not explore beyond that
+
+1. **The ticket** — use GitHub MCP `issue_read`:
+   - owner: $OWNER, repo: $REPO, issue_number: $TICKET_N
+   - Retrieve title, body, labels, all comments (enrichment plan is in the comments)
+
+2. **CLAUDE.md** at the project root
+
+3. **The enrichment plan** — extract from issue comments (the `## Plan d'enrichissement` comment)
+
+4. **Only the files mentioned in the plan** — do not explore beyond that
 
 ```bash
 _log "$RUN_ID" "dev" "$TICKET_N" "context_loaded" "ok" \
@@ -162,11 +180,12 @@ _log "$RUN_ID" "dev" "$TICKET_N" "self_review" "ok" \
 
 ### 5. Open the PR
 
+Commit and push using bash (local git operations):
+
 ```bash
 git add <specific files>
 git commit -m "<type>: <what and why in one line>"
 
-# Push with explicit error handling
 SHORT_NAME="<short-name>"
 git push -u origin "feat/ticket-${TICKET_N}-${SHORT_NAME}"
 PUSH_EXIT=$?
@@ -179,14 +198,20 @@ if [ $PUSH_EXIT -ne 0 ]; then
   # Do NOT force-push without explicit diagnosis and justification
   _log "$RUN_ID" "dev" "$TICKET_N" "error" "error" \
     "push failed" '{"phase":"push","reason":"see diagnostic output above"}'
-  gh issue comment "$TICKET_N" --body "Push failed. Diagnostic logged. Manual intervention required."
   exit 1
 fi
 
 _log "$RUN_ID" "dev" "$TICKET_N" "pushed" "ok" \
   "branch pushed" "{\"branch\":\"feat/ticket-${TICKET_N}-${SHORT_NAME}\"}"
+```
 
-gh pr create --title "<ticket title>" --body "$(cat <<'EOF'
+Then create the PR using GitHub MCP `create_pull_request`:
+- owner: $OWNER, repo: $REPO
+- title: `<ticket title>`
+- head: `feat/ticket-<N>-<short-name>`
+- base: `dev`
+- body:
+```
 Closes #<N>
 
 ## What
@@ -203,13 +228,47 @@ Closes #<N>
 
 ## Dette technique
 [Delete this section if none — shortcuts taken, known limitations, follow-up tickets needed]
-EOF
-)"
+```
 
-PR_URL=$(gh pr view --json url --jq '.url' 2>/dev/null || echo "unknown")
-PR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "0")
+Save the PR number and URL returned by the MCP call.
+
+```bash
 _log "$RUN_ID" "dev" "$TICKET_N" "pr_created" "ok" \
-  "PR created" "{\"pr_url\":\"$PR_URL\",\"pr_number\":$PR_NUMBER}"
+  "PR created" "{\"pr_number\":$PR_NUMBER}"
+```
+
+### 5.5. Wait for CI (optional — skip if no GitHub Actions configured)
+
+After pushing, use GitHub MCP `actions_list_workflow_runs_for_repo` to check if a CI workflow exists and is running:
+- owner: $OWNER, repo: $REPO, branch: `feat/ticket-<N>-<short-name>`
+
+If a run is found in state `in_progress` or `queued`:
+- Wait for it to complete (poll with `actions_list_workflow_runs_for_repo`)
+- If it completes with `failure` or `cancelled`: use `actions_get_job_for_workflow_run` to fetch the failing job logs, post a summary via `add_issue_comment`, then log error and stop
+
+```bash
+CI_STATUS="skipped"  # or "passed" / "failed"
+_log "$RUN_ID" "dev" "$TICKET_N" "ci_check" "ok" \
+  "CI check done" "{\"status\":\"$CI_STATUS\"}"
+```
+
+### 5.6. Deploy preview (Railway only — skip if platform ≠ railway)
+
+If `cao.config.yml` has `deploy.platform: railway`:
+
+Use Railway MCP `deploy` to trigger a deploy of the feature branch:
+- project: `deploy.project` from config
+- service: `deploy.service` from config
+
+Then use Railway MCP `generate-domain` to get the preview URL for this service.
+
+If deploy succeeds:
+- Add the preview URL to the PR body via GitHub MCP `add_issue_comment`
+
+```bash
+PREVIEW_URL="<url or empty>"
+_log "$RUN_ID" "dev" "$TICKET_N" "deploy_preview" "ok" \
+  "preview deployed" "{\"url\":\"$PREVIEW_URL\"}"
 ```
 
 ### 6. Update documentation (at PR time only)
@@ -259,57 +318,56 @@ _log "$RUN_ID" "dev" "$TICKET_N" "docs_updated" "ok" \
 
 ### 7. Update ticket state
 
+Use GitHub MCP `issue_write` to update labels:
+- owner: $OWNER, repo: $REPO, issue_number: $TICKET_N
+- Remove label: `dev-in-progress`, add label: `to-test`
+
+Then use GitHub MCP `add_issue_comment` to post the PR link:
+- owner: $OWNER, repo: $REPO, issue_number: $TICKET_N
+- body: `PR ready: <PR_URL>\n\nPreview: <PREVIEW_URL or "N/A">`
+
 ```bash
-gh issue edit <N> --remove-label "dev-in-progress" --add-label "to-test"
-gh issue comment <N> --body "PR ready: $PR_URL
-
-Preview: <deployment URL if available>"
-
 _log "$RUN_ID" "dev" "$TICKET_N" "label_updated" "ok" \
   "label updated" '{"from":"dev-in-progress","to":"to-test"}'
 
 _log "$RUN_ID" "dev" "$TICKET_N" "end" "success" \
-  "implementation complete" "{\"duration_s\":$(( $(date +%s) - _AGENT_START )),\"pr\":\"$PR_URL\"}"
+  "implementation complete" "{\"duration_s\":$(( $(date +%s) - _AGENT_START )),\"pr_number\":$PR_NUMBER}"
 ```
 
 ### 8. Handle godeploy (when triggered directly)
 
-If the ticket carries the `godeploy` label when loading context (or when it appears after to-test), execute the merge directly:
+If the ticket carries the `godeploy` label when loading context (or when it appears after to-test), execute the merge directly.
 
 ```bash
 _log "$RUN_ID" "dev" "$TICKET_N" "merge_start" "started" \
   "godeploy detected" "{\"ticket\":$TICKET_N}"
+```
 
-# Find the PR for this ticket's branch
-PR_URL=$(gh pr list --head "feat/ticket-${TICKET_N}-${SHORT_NAME}" --json url --jq '.[0].url' 2>/dev/null)
-if [ -z "$PR_URL" ]; then
-  _log "$RUN_ID" "dev" "$TICKET_N" "error" "error" \
-    "no PR found for godeploy" '{"phase":"merge_start"}'
-  gh issue comment "$TICKET_N" --body "godeploy detected but no PR found for branch feat/ticket-${TICKET_N}-${SHORT_NAME}. Cannot merge."
-  exit 1
-fi
+**Find the open PR** using GitHub MCP `list_pull_requests`:
+- owner: $OWNER, repo: $REPO, state: open, head: `feat/ticket-<N>-<short-name>`
 
-# Verify PR is mergeable (checks pass)
-PR_STATE=$(gh pr view "$PR_URL" --json state,mergeable --jq '.state + "/" + .mergeable')
-if [[ "$PR_STATE" != "OPEN/MERGEABLE" ]]; then
-  _log "$RUN_ID" "dev" "$TICKET_N" "error" "error" \
-    "PR not mergeable: $PR_STATE" '{"phase":"merge_start"}'
-  gh issue comment "$TICKET_N" --body "godeploy: PR is not mergeable (state: $PR_STATE). Check for failing checks or conflicts."
-  exit 1
-fi
+If no PR found: use `add_issue_comment` to explain, log error, stop.
 
-gh pr merge "$PR_URL" --merge --delete-branch
+**Check PR is mergeable** using GitHub MCP `pull_request_read`:
+- owner: $OWNER, repo: $REPO, pullNumber: <PR number>
+- Verify state is `open` and mergeable is not `conflicting`
 
-gh issue edit "$TICKET_N" \
-  --remove-label "to-test" \
-  --remove-label "godeploy" \
-  --add-label "deployed"
+If not mergeable: post a comment explaining (conflicts or failing checks), log error, stop.
 
+**Merge** using GitHub MCP `merge_pull_request`:
+- owner: $OWNER, repo: $REPO, pullNumber: <PR number>
+- merge_method: `merge`
+
+**Update ticket labels** using GitHub MCP `issue_write`:
+- owner: $OWNER, repo: $REPO, issue_number: $TICKET_N
+- Remove labels: `to-test`, `godeploy` — add label: `deployed`
+
+```bash
 _log "$RUN_ID" "dev" "$TICKET_N" "merge_complete" "ok" \
-  "merged to dev branch" "{\"pr\":\"$PR_URL\"}"
+  "merged to dev branch" "{\"pr_number\":$PR_NUMBER}"
 
 _log "$RUN_ID" "dev" "$TICKET_N" "end" "success" \
-  "ticket deployed" "{\"duration_s\":$(( $(date +%s) - _AGENT_START )),\"pr\":\"$PR_URL\"}"
+  "ticket deployed" "{\"duration_s\":$(( $(date +%s) - _AGENT_START ))}"
 ```
 
 This flow is also triggered by `process-tickets` as orchestrator. Both coexist safely: `process-tickets` locks the ticket in `dev-in-progress` before launching this agent, preventing collisions.
@@ -335,8 +393,10 @@ If you hit an unrecoverable error at any point:
 ```bash
 _log "$RUN_ID" "dev" "$TICKET_N" "error" "error" \
   "Erreur: <short description>" '{"phase":"<phase where it failed>"}'
-gh issue edit "$TICKET_N" --remove-label "dev-in-progress" --add-label "to-dev"
-gh issue comment "$TICKET_N" --body "Dev agent failed: <reason>. Ticket reset to to-dev."
 ```
+
+Then via GitHub MCP:
+- `issue_write`: owner: $OWNER, repo: $REPO, issue_number: $TICKET_N — remove label `dev-in-progress`, add label `to-dev`
+- `add_issue_comment`: owner: $OWNER, repo: $REPO, issue_number: $TICKET_N — "Dev agent failed: \<reason\>. Ticket reset to to-dev."
 
 Never leave a ticket stuck in `dev-in-progress`.
