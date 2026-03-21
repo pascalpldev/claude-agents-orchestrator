@@ -1,9 +1,9 @@
 ---
-name: hello-team-lead
+name: cao-hello-team-lead
 description: |
   Morning standup — load the current project state and prepare for the day.
 
-  Use /hello-team-lead at the start of your day to:
+  Use /cao-hello-team-lead at the start of your day to:
   - Check open tickets (to-enrich, to-dev, to-test)
   - See what's been deployed
   - Understand blockers or feedback
@@ -13,7 +13,7 @@ description: |
 allowed-tools: [Read, Glob, Grep, Bash]
 ---
 
-# /hello-team-lead — Daily standup & context refresh
+# /cao-hello-team-lead — Daily standup & context refresh
 
 At the start of a session, call this to get full context of the project.
 
@@ -58,13 +58,13 @@ At the start of a session, call this to get full context of the project.
 
 **Option A: Discuss a specific ticket**
 ```
-/get-ticket #5
+/cao-get-ticket #5
 → Discuss with team-lead here
 ```
 
 **Option B: Launch automation**
 ```
-/process-tickets
+/cao-process-tickets
 → Enriches all to-enrich
 → Starts dev on all to-dev
 → Handles feedback on to-test

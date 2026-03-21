@@ -1,10 +1,10 @@
 ---
-name: save-session
+name: cao-save-session
 description: Summarize the current session, update CLAUDE.md and memory files if needed. Use at the end of a work session to persist context for future conversations.
 allowed-tools: [Read, Edit, Write, Glob, Grep]
 ---
 
-# /save-session — End of session context persistence
+# /cao-save-session — End of session context persistence
 
 Role: maintain project context up-to-date for future conversations.
 

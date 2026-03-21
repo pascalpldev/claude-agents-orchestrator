@@ -1,11 +1,11 @@
 #!/bin/bash
-# Setup Claude Workflow Kit for a new project
+# Setup Claude Agents Orchestrator for a new project
 
 set -e
 
 PROJECT_NAME="${1:-.}"
 
-echo "🚀 Setting up Claude Workflow Kit for: $PROJECT_NAME"
+echo "🚀 Setting up Claude Agents Orchestrator for: $PROJECT_NAME"
 
 # Colors
 GREEN='\033[0;32m'
@@ -32,18 +32,18 @@ echo -e "${GREEN}✅ Branches ready${NC}"
 
 # 3. Info
 echo ""
-echo -e "${GREEN}✅ Claude Workflow Kit setup complete!${NC}"
+echo -e "${GREEN}✅ Claude Agents Orchestrator setup complete!${NC}"
 echo ""
 echo "Next steps:"
 echo "1. Skills are already available globally:"
-echo "   - /hello-team-lead"
+echo "   - /cao-hello-team-lead"
 echo "   - /ticket #N"
-echo "   - /process-tickets"
+echo "   - /cao-process-tickets"
 echo ""
 echo "2. Create your first ticket:"
 echo "   gh issue create --title 'Feature: ...' --label 'to-enrich'"
 echo ""
 echo "3. Start the workflow:"
-echo "   /process-tickets"
+echo "   /cao-process-tickets"
 echo ""
 echo "📖 Documentation: see CLAUDE.md in this directory"

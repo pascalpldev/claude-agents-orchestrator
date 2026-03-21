@@ -1,5 +1,5 @@
 ---
-name: show-logs
+name: cao-show-logs
 description: |
   Read and display agent run logs for the current project.
 
@@ -7,16 +7,16 @@ description: |
   Useful for tracking what agents did, how long they took, and diagnosing errors.
 
   Usage:
-    /show-logs                    — today's runs, grouped by ticket
-    /show-logs --last 10          — last 10 log entries across all tickets
-    /show-logs --ticket 12        — full history for ticket #12
-    /show-logs --agent team-lead  — runs by team-lead only
-    /show-logs --errors           — only runs with error events
+    /cao-show-logs                    — today's runs, grouped by ticket
+    /cao-show-logs --last 10          — last 10 log entries across all tickets
+    /cao-show-logs --ticket 12        — full history for ticket #12
+    /cao-show-logs --agent team-lead  — runs by team-lead only
+    /cao-show-logs --errors           — only runs with error events
 argument-hint: "[--errors] [--ticket N] [--last N] [--agent team-lead|dev]"
 allowed-tools: [Bash, Read]
 ---
 
-# /show-logs — Display agent run logs
+# /cao-show-logs — Display agent run logs
 
 ## What it does
 

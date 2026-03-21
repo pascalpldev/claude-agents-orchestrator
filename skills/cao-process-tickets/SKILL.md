@@ -1,5 +1,5 @@
 ---
-name: process-tickets
+name: cao-process-tickets
 description: |
   Poll GitHub tickets and process them through the enrichment and dev workflows.
 
@@ -15,7 +15,7 @@ description: |
 allowed-tools: [Read, Glob, Grep, Bash, Agent]
 ---
 
-# /process-tickets — Poll and process GitHub tickets
+# /cao-process-tickets — Poll and process GitHub tickets
 
 Core automation workflow. Detects tickets in various states and launches the appropriate agent.
 

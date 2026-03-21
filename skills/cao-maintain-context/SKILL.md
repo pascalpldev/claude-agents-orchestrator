@@ -1,5 +1,5 @@
 ---
-name: maintain-context
+name: cao-maintain-context
 description: This skill provides guidance when a developer asks how to maintain CLAUDE.md, memory files, or project context. Use when the user asks "what should I update?", "how do I maintain context?", "is my CLAUDE.md up to date?", or wants to audit the current state of their project context files.
 allowed-tools: [Read, Glob, Grep, Bash, Edit, Write]
 ---

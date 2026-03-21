@@ -1,10 +1,10 @@
 ---
-name: get-ticket
+name: cao-get-ticket
 description: |
   Load a GitHub ticket by number or partial title and discuss it with fresh context.
 
   Use this when you want to discuss a specific ticket with the team-lead bot before processing it.
-  Say /get-ticket #5 or /get-ticket "Feature name" to load the ticket, confirm it's the right one, and discuss.
+  Say /cao-get-ticket #5 or /cao-get-ticket "Feature name" to load the ticket, confirm it's the right one, and discuss.
 
   This loads the ticket's current state from GitHub (fresh data) and prepares for inline discussion
   or to trigger enrichment/dev workflows.
@@ -12,16 +12,16 @@ argument-hint: <ticket-number-or-title>
 allowed-tools: [Read, Glob, Grep, Bash]
 ---
 
-# /get-ticket — Load and discuss a GitHub ticket
+# /cao-get-ticket — Load and discuss a GitHub ticket
 
 Load a GitHub ticket with fresh context from GitHub. Perfect for discussing with the team-lead before enrichment, or checking the current state of a ticket.
 
 ## Usage
 
 ```
-/get-ticket #5
-/get-ticket "Feature name"
-/get-ticket enrichment  # Load first N tickets with "to-enrich" label
+/cao-get-ticket #5
+/cao-get-ticket "Feature name"
+/cao-get-ticket enrichment  # Load first N tickets with "to-enrich" label
 ```
 
 ## What this does
@@ -47,7 +47,7 @@ The skill:
 ## Example
 
 ```
-You: /get-ticket #5
+You: /cao-get-ticket #5
 
 Ticket loaded: "Feature: Improved search filtering" (#5)
 

@@ -1,4 +1,4 @@
-# Claude Workflow Kit
+# Claude Agents Orchestrator
 
 **Automated GitHub ticket management with Claude agents — from idea to deployment.**
 
@@ -26,10 +26,10 @@ Claude creates a PR, merges to dev
 
 | Skill | Trigger | Role |
 |-------|---------|------|
-| `/hello-team-lead` | Start of day | Project standup — see all open tickets and their status |
-| `/get-ticket #N` | Anytime | Load a specific ticket and discuss it with Claude |
-| `/process-tickets` | On demand / every minute | Poll all tickets and launch the right agent for each state |
-| `/save-session` | End of session | Update CLAUDE.md and memory files to persist context |
+| `/cao-hello-team-lead` | Start of day | Project standup — see all open tickets and their status |
+| `/cao-get-ticket #N` | Anytime | Load a specific ticket and discuss it with Claude |
+| `/cao-process-tickets` | On demand / every minute | Poll all tickets and launch the right agent for each state |
+| `/cao-save-session` | End of session | Update CLAUDE.md and memory files to persist context |
 
 ### Ticket states (GitHub labels)
 
@@ -55,17 +55,17 @@ Add this to your `~/.claude/settings.json`:
 ```json
 {
   "extraKnownMarketplaces": {
-    "claude-workflow-kit": {
+    "claude-agents-orchestrator": {
       "source": {
         "source": "github",
-        "repo": "pascalpldev/claude-workflow-kit"
+        "repo": "pascalpldev/claude-agents-orchestrator"
       }
     }
   }
 }
 ```
 
-Then in Claude Code, install the `claude-workflow-kit` plugin. The skills will be available globally across all your projects.
+Then in Claude Code, install the `claude-agents-orchestrator` plugin. The skills will be available globally across all your projects.
 
 > The plugin auto-detects the current project from `git remote` — no per-project configuration needed.
 
@@ -104,20 +104,20 @@ What this project does in 2-3 sentences.
 Stack, key files, entry point.
 
 ## Dev workflow
-See [Claude Workflow Kit](https://github.com/pascalpldev/claude-workflow-kit).
+See [Claude Agents Orchestrator](https://github.com/pascalpldev/claude-agents-orchestrator).
 ```
 
 This file is what agents read first — keep it accurate.
 
 ### 4. Optional: Schedule automation
 
-To run `/process-tickets` automatically every minute without manual intervention, create a scheduled task in Claude Code:
+To run `/cao-process-tickets` automatically every minute without manual intervention, create a scheduled task in Claude Code:
 
 ```
 /anthropic-skills:schedule
   taskId: "poll-tickets"
   cronExpression: "*/1 * * * *"
-  prompt: "/process-tickets"
+  prompt: "/cao-process-tickets"
 ```
 
 ---
@@ -162,7 +162,7 @@ Do **not** put secrets, personal info, or team-specific configs here. It lives i
 
 Stored in `~/.claude/projects/<project>/memory/` — local only, never committed.
 
-Use `/save-session` at the end of each work session. It will:
+Use `/cao-save-session` at the end of each work session. It will:
 1. Detect what changed in the conversation
 2. Update `CLAUDE.md` if justified
 3. Write or update memory files for context that should persist across sessions
@@ -179,7 +179,7 @@ Memory types:
 
 ### What developers should maintain
 
-- **After each session**: run `/save-session`
+- **After each session**: run `/cao-save-session`
 - **After a major change**: review and update `CLAUDE.md`
 - **When Claude behaves unexpectedly**: note it as a `feedback` memory
 
@@ -189,7 +189,7 @@ Memory types:
 
 **No.** Railway is one option for hosting preview URLs per branch — but it is not required by the kit.
 
-The `/process-tickets` skill expects agents to post a **preview URL** after deployment. Where that URL comes from depends on your infrastructure:
+The `/cao-process-tickets` skill expects agents to post a **preview URL** after deployment. Where that URL comes from depends on your infrastructure:
 
 | Platform | Preview per branch? | Notes |
 |----------|--------------------|----|

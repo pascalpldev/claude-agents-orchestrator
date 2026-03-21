@@ -1,4 +1,4 @@
-# Claude Workflow Kit — Automated GitHub Ticket Management
+# Claude Agents Orchestrator — Automated GitHub Ticket Management
 
 **This kit provides a reusable workflow for managing GitHub tickets with Claude agents.**
 
@@ -8,14 +8,14 @@ Use this in any project to automate enrichment, development, testing, and deploy
 
 ```bash
 # Clone or copy into your project
-git clone https://github.com/pascalpldev/claude-workflow-kit.git my-project
+git clone https://github.com/pascalpldev/claude-agents-orchestrator.git my-project
 
 # Or add as submodule
 cd my-project
-git submodule add https://github.com/pascalpldev/claude-workflow-kit.git .claude-workflow
+git submodule add https://github.com/pascalpldev/claude-agents-orchestrator.git .claude-workflow
 
 # Setup
-cd claude-workflow-kit
+cd claude-agents-orchestrator
 ./SETUP.sh "my-project"
 ```
 
@@ -23,9 +23,9 @@ cd claude-workflow-kit
 
 ### Skills (Global — use in any Claude Code session)
 
-- **`/hello-team-lead`** — Daily standup, load project state
-- **`/get-ticket #N`** — Load a GitHub ticket for discussion
-- **`/process-tickets`** — Poll tickets and process them (enrichment → dev → test → merge)
+- **`/cao-hello-team-lead`** — Daily standup, load project state
+- **`/cao-get-ticket #N`** — Load a GitHub ticket for discussion
+- **`/cao-process-tickets`** — Poll tickets and process them (enrichment → dev → test → merge)
 
 ### Templates (Per-project)
 
@@ -75,11 +75,11 @@ cd claude-workflow-kit
 | Step | Actor | Tool |
 |------|-------|------|
 | Create ticket | You | `gh issue create` |
-| Enrichment | Claude (Sonnet) | `/process-tickets` or `/ticket` |
+| Enrichment | Claude (Sonnet) | `/cao-process-tickets` or `/ticket` |
 | Validation | You | GitHub UI or `gh` CLI |
-| Development | Claude (Haiku) | `/process-tickets` |
+| Development | Claude (Haiku) | `/cao-process-tickets` |
 | Testing | You | URL preview |
-| Merge | Claude | `/process-tickets` (detects godeploy tag) |
+| Merge | Claude | `/cao-process-tickets` (detects godeploy tag) |
 
 ---
 
@@ -138,7 +138,7 @@ gh issue create \
 ### Option B: Auto-enrich (Automatic)
 
 ```
-/process-tickets
+/cao-process-tickets
 → Detects "to-enrich" + no assignee
 → Launches team-lead agent
 → Agent enriches + changes label → "enriched"
@@ -157,7 +157,7 @@ Review the enrichment plan
 ### Auto-develop
 
 ```
-/process-tickets
+/cao-process-tickets
 → Detects "to-dev" + no assignee
 → Launches dev agent
 → Agent: create branch → implement → verify → post URL
@@ -209,7 +209,7 @@ For true 24/7 automation, create a scheduled task in Claude Code:
 /anthropic-skills:schedule
   taskId: "poll-tickets"
   cronExpression: "*/1 * * * *"  # every minute
-  prompt: "/process-tickets"
+  prompt: "/cao-process-tickets"
 ```
 
 Or use Railway/Fly.io cron for production.
@@ -221,7 +221,7 @@ Or use Railway/Fly.io cron for production.
 **"Ticket stuck in enriching"**
 - Check if agent hit an error
 - Manually change label back to "to-enrich"
-- Run `/process-tickets` again
+- Run `/cao-process-tickets` again
 
 **"Multiple agents processing same ticket"**
 - Locked states (enriching, dev-in-progress) should prevent this
@@ -245,7 +245,7 @@ By default:
 - **Enrichment**: Sonnet (reasoning, planning)
 - **Development**: Haiku (implementation, cost savings)
 
-Change in `/process-tickets` skill if needed.
+Change in `/cao-process-tickets` skill if needed.
 
 ### Per-Project Config
 
@@ -274,13 +274,13 @@ Create `~/.claude/projects/<project>/memory/workflow-config.md`:
 
 ```bash
 cd my-project
-git submodule add https://github.com/pascalpldev/claude-workflow-kit.git .claude-workflow
+git submodule add https://github.com/pascalpldev/claude-agents-orchestrator.git .claude-workflow
 ```
 
 ### Option 2: Template (Copy)
 
 ```bash
-cp -r claude-workflow-kit/* my-project/
+cp -r claude-agents-orchestrator/* my-project/
 ```
 
 ### Option 3: Reference
@@ -289,7 +289,7 @@ Just reference this kit in your README:
 ```
 ## Development Workflow
 
-This project uses [Claude Workflow Kit](https://github.com/pascalpldev/claude-workflow-kit).
+This project uses [Claude Agents Orchestrator](https://github.com/pascalpldev/claude-agents-orchestrator).
 
 See the kit's documentation for how to use the automation.
 ```
@@ -302,4 +302,4 @@ Issues, PRs welcome. This kit is meant to evolve.
 
 ---
 
-**Ready? Create your first ticket with `to-enrich` label and run `/process-tickets`!**
+**Ready? Create your first ticket with `to-enrich` label and run `/cao-process-tickets`!**
