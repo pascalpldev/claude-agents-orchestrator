@@ -223,6 +223,7 @@ If you use Railway, the Railway MCP can be configured globally in `~/.claude/.mc
 
 - **Claude Code** (CLI)
 - **GitHub CLI** (`gh`) — authenticated with `gh auth login`
+- **Python 3** — used by `lib/log.sh` to write agent run logs (pre-installed on macOS and most Linux distros)
 - A GitHub repo with `main` and `dev` branches
 - No specific deployment platform required
 
