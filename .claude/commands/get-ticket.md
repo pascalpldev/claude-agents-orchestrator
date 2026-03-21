@@ -1,5 +1,5 @@
 ---
-name: ticket
+name: get-ticket
 description: |
   Load a GitHub ticket by number or partial title and discuss it with fresh context.
 
@@ -10,7 +10,7 @@ description: |
   or to trigger enrichment/dev workflows.
 ---
 
-# /ticket — Load and discuss a GitHub ticket
+# /get-ticket — Load and discuss a GitHub ticket
 
 Load a GitHub ticket with fresh context from GitHub. Perfect for discussing with the team-lead before enrichment, or checking the current state of a ticket.
 

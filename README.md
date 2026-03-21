@@ -50,7 +50,7 @@ See [CLAUDE.md](./CLAUDE.md) for complete documentation.
 ## Skills Provided
 
 - **`/hello-team-lead`** — Daily standup
-- **`/ticket #N`** — Load a ticket for discussion
+- **`/get-ticket #N`** — Load a ticket for discussion
 - **`/process-tickets`** — Run automation once
 
 ## Integration

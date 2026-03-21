@@ -24,7 +24,7 @@ cd claude-workflow-kit
 ### Skills (Global — use in any Claude Code session)
 
 - **`/hello-team-lead`** — Daily standup, load project state
-- **`/ticket #N`** — Load a GitHub ticket for discussion
+- **`/get-ticket #N`** — Load a GitHub ticket for discussion
 - **`/process-tickets`** — Poll tickets and process them (enrichment → dev → test → merge)
 
 ### Templates (Per-project)
