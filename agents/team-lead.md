@@ -33,19 +33,38 @@ _log "$RUN_ID" "team-lead" "$TICKET_N" "start" "started" \
   "ticket #${TICKET_N} — ${TICKET_TITLE}" '{"trigger":"enrichment"}'
 ```
 
-### 0.5. Detect project
+### 0.0. Validate prerequisites
 
-Extract owner and repo from git remote — required for all GitHub MCP calls:
+**GitHub MCP is mandatory.** Before proceeding, verify it is configured and has repo access:
 
 ```bash
+# Try to fetch the current repo info via GitHub MCP issue_read
+# This will fail with a clear error if MCP is not configured
 REMOTE=$(git remote get-url origin 2>/dev/null)
 OWNER=$(echo "$REMOTE" | sed 's|.*github\.com[:/]||' | cut -d'/' -f1)
 REPO=$(echo "$REMOTE" | sed 's|.*github\.com[:/]||' | cut -d'/' -f2 | sed 's|\.git$||')
+
+# Quick MCP healthcheck: try to list issues (minimal data, no auth errors if token is valid)
+# If this fails, GitHub MCP is not configured or token has insufficient permissions
+if ! gh api repos/$OWNER/$REPO --silent 2>/dev/null; then
+  _log "$RUN_ID" "team-lead" "$TICKET_N" "error" "error" \
+    "GitHub MCP not configured or invalid token" '{"phase":"validation"}'
+  echo "ERROR: GitHub MCP is not accessible."
+  echo "Ensure GitHub MCP is configured in ~/.claude/.mcp.json with a valid token."
+  exit 1
+fi
+
+_log "$RUN_ID" "team-lead" "$TICKET_N" "validation" "ok" \
+  "prerequisites validated" "{\"owner\":\"$OWNER\",\"repo\":\"$REPO\"}"
 ```
+
+### 0.5. Ready
+
+OWNER and REPO already detected and validated in step 0.0.
 
 ### 1. Load context
 
-Read in this order:
+Using OWNER and REPO detected in step 0.0, read in this order:
 
 1. **The ticket** — use GitHub MCP `issue_read`:
    - owner: $OWNER, repo: $REPO, issue_number: $TICKET_N

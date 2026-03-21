@@ -33,21 +33,38 @@ _log "$RUN_ID" "dev" "$TICKET_N" "start" "started" \
   "ticket #${TICKET_N} — ${TICKET_TITLE}" '{"trigger":"dev"}'
 ```
 
-### 0.5. Detect project + load config
+### 0.0. Validate prerequisites
 
-Extract owner and repo from git remote — required for all GitHub MCP calls:
+**GitHub MCP is mandatory.** Before proceeding, verify it is configured and has repo access:
 
 ```bash
+# Detect repo first
 REMOTE=$(git remote get-url origin 2>/dev/null)
 OWNER=$(echo "$REMOTE" | sed 's|.*github\.com[:/]||' | cut -d'/' -f1)
 REPO=$(echo "$REMOTE" | sed 's|.*github\.com[:/]||' | cut -d'/' -f2 | sed 's|\.git$||')
+
+# Quick MCP healthcheck: verify GitHub MCP can access the repo
+if ! gh api repos/$OWNER/$REPO --silent 2>/dev/null; then
+  _log "$RUN_ID" "dev" "$TICKET_N" "error" "error" \
+    "GitHub MCP not configured or invalid token" '{"phase":"validation"}'
+  echo "ERROR: GitHub MCP is not accessible."
+  echo "Ensure GitHub MCP is configured in ~/.claude/.mcp.json with a valid token."
+  exit 1
+fi
+
+_log "$RUN_ID" "dev" "$TICKET_N" "validation" "ok" \
+  "prerequisites validated" "{\"owner\":\"$OWNER\",\"repo\":\"$REPO\"}"
 ```
+
+### 0.5. Load deployment config
 
 Read `cao.config.yml` at the repo root if it exists — extract `deploy.platform`, `deploy.project`, `deploy.service`. If absent or `platform: none`, skip all deploy steps.
 
+(OWNER and REPO already detected in step 0.0)
+
 ### 1. Load context
 
-Read in this order:
+Using OWNER and REPO detected in step 0.0, read in this order:
 
 1. **The ticket** — use GitHub MCP `issue_read`:
    - owner: $OWNER, repo: $REPO, issue_number: $TICKET_N

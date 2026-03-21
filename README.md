@@ -290,6 +290,21 @@ The Railway block is optional — omit it if you don't use Railway.
 
 SETUP.sh still uses `gh` CLI for label creation — that runs outside of agents, where MCP is not available.
 
+### Verifying MCP configuration
+
+Agents validate MCP prerequisites at startup (step 0.0). If validation fails:
+
+**"GitHub MCP not configured or invalid token"**
+→ Check `~/.claude/.mcp.json` has the GitHub MCP block with a valid PAT
+→ Verify PAT has repo access (`repo` scope minimum)
+→ Run `gh auth status` to confirm CLI authentication
+
+**"Railway MCP not accessible" (step 5.6 only)**
+→ Check if `cao.config.yml` has `deploy.platform: railway`
+→ If yes, verify Railway MCP is configured in `~/.claude/.mcp.json`
+→ Verify RAILWAY_API_TOKEN is valid
+→ (Safe to skip if you don't use Railway — just use `platform: none`)
+
 ---
 
 ## Troubleshooting
