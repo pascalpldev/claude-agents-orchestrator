@@ -10,49 +10,46 @@ description: |
   - Be ready to discuss and make decisions
 
   This is the "team lead" perspective: full context of what's happening.
+allowed-tools: [Read, Glob, Grep, Bash]
 ---
 
 # /hello-team-lead — Daily standup & context refresh
 
-At the start of a session, call this to get full context of the project:
-
-```
-/hello-team-lead
-```
+At the start of a session, call this to get full context of the project.
 
 ## What it does
 
-1. **Fetches project state from GitHub:**
-   - Open tickets by label (to-enrich, enriched, to-dev, to-test)
+1. **Detect current project** from `git remote get-url origin`
+2. **Read project CLAUDE.md** for architecture context
+3. **Fetch project state from GitHub:**
+   - Open tickets by label (to-enrich, enriched, to-dev, to-test, deployed)
    - Recent comments and feedback
-   - Deployments and current status
+   - Current branch status
 
-2. **Displays summary:**
+4. **Display summary:**
    ```
-   === InstaVid Project Status ===
+   === Project Status: <project-name> ===
 
    TO-ENRICH (waiting for enrichment):
    - #5: Feature X (2 hours ago)
-   - #8: Feature Y (1 day ago)
 
-   ENRICHED (waiting for user validation):
+   ENRICHED (waiting for validation):
    - #3: Feature Z (comments: "need clarification on...")
 
    TO-DEV (ready to implement):
    - #1: Feature A (validated, ready to code)
 
    TO-TEST (user is testing):
-   - #2: Feature B (URL: https://feat-2.railway.app)
+   - #2: Feature B (preview URL posted)
 
    DEPLOYED:
    - #7: Feature C (merged 2 hours ago)
 
    === Recent feedback ===
    #3: "Can you explain the database schema?"
-   #2: "Testing in production, looks good so far"
    ```
 
-3. **Positions as team-lead:**
+5. **Position as team-lead:**
    - Ready to discuss any ticket
    - Ready to prioritize
    - Ready to help unblock agents
@@ -61,11 +58,11 @@ At the start of a session, call this to get full context of the project:
 
 **Option A: Discuss a specific ticket**
 ```
-/ticket #5
+/get-ticket #5
 → Discuss with team-lead here
 ```
 
-**Option B: Launch automation** (runs once, polls all tickets)
+**Option B: Launch automation**
 ```
 /process-tickets
 → Enriches all to-enrich
@@ -79,6 +76,5 @@ At the start of a session, call this to get full context of the project:
 - Git log (recent changes)
 - All open GitHub issues + comments
 - Labels and assignments
-- Deployment status
 
 This is your **daily ritual** to stay synchronized with the project.

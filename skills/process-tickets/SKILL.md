@@ -3,7 +3,7 @@ name: process-tickets
 description: |
   Poll GitHub tickets and process them through the enrichment and dev workflows.
 
-  This is the core automation skill - runs every minute via scheduled task.
+  This is the core automation skill — runs on demand or every minute via scheduled task.
   It detects tickets in various states and automatically launches enrichment or dev agents.
 
   States handled:
@@ -12,13 +12,19 @@ description: |
   - to-dev + no assignee → dev agent implements
   - to-test → dev agent relaunches if feedback detected
   - godeploy tag → create PR and merge
+allowed-tools: [Read, Glob, Grep, Bash, Agent]
 ---
 
 # /process-tickets — Poll and process GitHub tickets
 
-Core automation workflow. Runs every minute via scheduled task.
+Core automation workflow. Detects tickets in various states and launches the appropriate agent.
 
-Detects tickets in various states and launches the appropriate agent (team-lead or dev).
+## Context detection
+
+Before processing, detect the current project:
+1. Run `git remote get-url origin` to identify the repo
+2. Read the project's `CLAUDE.md` for architecture context
+3. Check open issues via `gh issue list`
 
 ## What it does
 
@@ -30,7 +36,7 @@ Detects tickets in various states and launches the appropriate agent (team-lead 
 a. Change label: to-enrich → enriching (lock)
 b. Launch team-lead agent:
    - Read ticket body + title
-   - Write plan d'enrichissement
+   - Write enrichment plan
    - Post as comment
    - Change label: enriching → enriched
 c. User is notified (ticket now "enriched")
@@ -88,46 +94,35 @@ c. Ticket is closed or marked deployed
 ## Example execution
 
 ```
-[Every minute]
+[On demand or every minute]
 
 1. gh issue list --label "to-enrich" --assignee ""
    → Found: #5, #12
 
 2. For ticket #5:
-   - Change label: to-enrich → enriching
+   - gh issue edit #5 --remove-label "to-enrich" --add-label "enriching"
    - Launch team-lead agent
-   - Agent enriches + posts + changes label: enriching → enriched
+   - Agent enriches + posts + changes label → enriched
 
 3. gh issue list --label "to-dev" --assignee ""
    → Found: #3
 
 4. For ticket #3:
-   - Change label: to-dev → dev-in-progress
+   - gh issue edit #3 --remove-label "to-dev" --add-label "dev-in-progress"
    - Launch dev agent
-   - Agent implements + verifies + posts URL + changes label: dev-in-progress → to-test
+   - Agent implements + verifies + posts URL → to-test
 
 5. gh issue list --label "godeploy"
    → Found: #1
 
 6. For ticket #1:
-   - Launch merge agent
-   - Agent creates PR + merges + changes label → deployed
-```
-
-## How it's triggered
-
-This skill is called by a scheduled task every minute:
-
-```
-mcp__scheduled-tasks__create_scheduled_task:
-  taskId: "poll-tickets"
-  cronExpression: "*/1 * * * *"
-  prompt: "/process-tickets"
+   - Launch merge agent → PR → merge → deployed
 ```
 
 ## Implementation notes
 
-- Each run is atomic (one ticket processed)
+- Each run is atomic (one ticket processed per state)
 - States are locked (enriching, dev-in-progress) to prevent collisions
 - Agents detect state transitions to handle challenges/feedback
 - All changes are via `gh` CLI for auditability
+- No hardcoded project name — auto-detected from git remote
