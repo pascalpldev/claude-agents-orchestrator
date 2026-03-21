@@ -19,7 +19,10 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(git checkout:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:docs.railway.com)",
+      "Bash(git check-ignore:*)"
     ]
   }
 }

@@ -1,9 +1,9 @@
 {
-  "name": "claude-workflow-kit",
+  "name": "claude-agents-orchestrator",
   "description": "Automated GitHub ticket management workflow for Claude Code — enrichment, development, testing, and deployment via issue labels and agents",
   "version": "1.0.0",
   "author": {
     "name": "pascalpldev"
   },
-  "repository": "https://github.com/pascalpldev/claude-workflow-kit"
+  "repository": "https://github.com/pascalpldev/claude-agents-orchestrator"
 }
