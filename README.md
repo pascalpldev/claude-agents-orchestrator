@@ -2,55 +2,66 @@
 
 **Automated GitHub ticket management with Claude agents — from idea to deployment.**
 
-This kit turns Claude Code into a full development team: Claude enriches feature specs, writes code, handles feedback, and merges validated work. You stay in control via GitHub labels and brief discussions.
+Turn Claude Code into a full development team: Claude enriches feature specs, writes code, handles feedback, and merges validated work. You stay in control via GitHub labels and brief discussions.
 
 ---
 
-## What it does
+## How it works
 
 ```
-You create a ticket (GitHub issue, label "to-enrich")
+You create a ticket → label "to-enrich"
         ↓
 Claude (Sonnet) writes an enrichment plan as a comment
         ↓
 You validate → change label to "to-dev"
         ↓
-Claude (Haiku) creates a branch, implements, posts a preview URL
+Claude (Sonnet) creates a branch, implements, opens a PR
         ↓
 You test → feedback or tag "godeploy"
         ↓
-Claude creates a PR, merges to dev
+Claude merges to dev
 ```
 
-### Skills provided
+---
 
-| Skill | Trigger | Role |
-|-------|---------|------|
-| `/cao-hello-team-lead` | Start of day | Project standup — see all open tickets and their status |
-| `/cao-get-ticket #N` | Anytime | Load a specific ticket and discuss it with Claude |
-| `/cao-process-tickets` | On demand / every minute | Poll all tickets and launch the right agent for each state |
-| `/cao-save-session` | End of session | Update CLAUDE.md and memory files to persist context |
+## Quickstart (5 minutes)
 
-### Ticket states (GitHub labels)
+> **Prerequisite**: plugin installed globally (see [Installation](#installation) below).
 
-| Label | Meaning |
-|-------|---------|
-| `to-enrich` | Ready for enrichment (planning) |
-| `enriching` | Team-lead agent running — locked |
-| `enriched` | Plan ready, waiting for your validation |
-| `to-dev` | Validated, ready to implement |
-| `dev-in-progress` | Dev agent running — locked |
-| `to-test` | Code ready, preview URL posted |
-| `deployed` | Merged to dev |
-| `godeploy` | Signal: trigger production merge |
+```bash
+# 1. In your project repo
+cd mon-projet
+bash ~/.claude/plugins/claude-agents-orchestrator/SETUP.sh
+
+# 2. Create CLAUDE.md at the project root (see template below)
+
+# 3. Create your first ticket
+gh issue create --title "Feature: user authentication" --label "to-enrich"
+```
+
+Then in Claude Code:
+```
+/cao-process-tickets
+```
+
+Claude posts an enrichment plan as a GitHub comment. Review it on GitHub, change the label to `to-dev`, then run `/cao-process-tickets` again — Claude creates the branch, implements, and opens a PR.
 
 ---
 
 ## Installation
 
-### 1. Install the plugin (Claude Code)
+### Prerequisites
 
-Add this to your `~/.claude/settings.json`:
+- **Claude Code** — `npm i -g @anthropic-ai/claude-code`
+- **GitHub CLI** — `brew install gh` then `gh auth login`
+- **Python 3** — pre-installed on macOS and most Linux distros
+- **Git**
+
+### Step 1 — Install the plugin (once, global)
+
+Claude Code plugins add skills available in **every** project session. Install once, use everywhere.
+
+**1a.** Add to `~/.claude/settings.json`:
 
 ```json
 {
@@ -65,34 +76,34 @@ Add this to your `~/.claude/settings.json`:
 }
 ```
 
-Then in Claude Code, install the `claude-agents-orchestrator` plugin. The skills will be available globally across all your projects.
+**1b.** In any Claude Code session, run `/plugins`, search for `claude-agents-orchestrator`, and install it.
 
-> The plugin auto-detects the current project from `git remote` — no per-project configuration needed.
+**1c.** Verify — type `/cao-` in any session and the skills should autocomplete.
 
-### 2. Set up GitHub labels
+### Step 2 — Set up each project (per project)
 
-In each project repo, create the required labels:
-
-```bash
-gh label create "to-enrich" --color "#0075ca"
-gh label create "enriching" --color "#e4e669"
-gh label create "enriched" --color "#0e8a16"
-gh label create "to-dev" --color "#d93f0b"
-gh label create "dev-in-progress" --color "#e4e669"
-gh label create "to-test" --color "#0075ca"
-gh label create "deployed" --color "#6f42c1"
-gh label create "godeploy" --color "#b60205"
-```
-
-Or run the provided setup script:
+In your project repo, run the setup script to create GitHub labels and the `dev` branch:
 
 ```bash
-./SETUP.sh
+bash ~/.claude/plugins/claude-agents-orchestrator/SETUP.sh
 ```
 
-### 3. Set up your project's CLAUDE.md
+Or manually:
 
-At the root of each project, create a `CLAUDE.md` with:
+```bash
+gh label create "to-enrich" --color "e2a5ff"
+gh label create "enriching" --color "ffd700"
+gh label create "enriched" --color "90ee90"
+gh label create "to-dev" --color "87ceeb"
+gh label create "dev-in-progress" --color "ff6347"
+gh label create "to-test" --color "ffa500"
+gh label create "deployed" --color "32cd32"
+gh label create "godeploy" --color "9370db"
+```
+
+### Step 3 — Create your project's CLAUDE.md
+
+At the root of each project, create a `CLAUDE.md` so agents understand the codebase:
 
 ```markdown
 # Project name
@@ -103,15 +114,109 @@ What this project does in 2-3 sentences.
 ## Architecture
 Stack, key files, entry point.
 
-## Dev workflow
-See [Claude Agents Orchestrator](https://github.com/pascalpldev/claude-agents-orchestrator).
+## Dev commands
+- Install: `npm install`
+- Start: `npm run dev`
+- Test: `npm test`
 ```
 
-This file is what agents read first — keep it accurate.
+This file is the first thing agents read — keep it accurate.
 
-### 4. Optional: Schedule automation
+---
 
-To run `/cao-process-tickets` automatically every minute without manual intervention, create a scheduled task in Claude Code:
+## Daily usage
+
+| When | Command | What happens |
+|------|---------|--------------|
+| Start of session | `/cao-hello-team-lead` | Overview of all open tickets and their status |
+| Load a ticket | `/cao-get-ticket #5` | Discuss a specific ticket with the team-lead |
+| Run automation | `/cao-process-tickets` | Enriches / implements / merges based on labels |
+| Check agent logs | `/cao-show-logs` | Timeline of what agents did (phases, durations, errors) |
+| End of session | `/cao-save-session` | Persists context to CLAUDE.md + memory files |
+
+---
+
+## Skills reference
+
+| Skill | Role |
+|-------|------|
+| `/cao-hello-team-lead` | Morning standup — project status at a glance |
+| `/cao-get-ticket #N` | Load a specific ticket and discuss it with Claude |
+| `/cao-process-tickets` | Core automation — poll and process all tickets |
+| `/cao-show-logs` | Read structured logs from agent runs |
+| `/cao-save-session` | Persist session context for future conversations |
+| `/cao-maintain-context` | Audit and update CLAUDE.md + memory files |
+
+---
+
+## Ticket states (GitHub labels)
+
+| Label | Meaning |
+|-------|---------|
+| `to-enrich` | Ready for enrichment (planning) |
+| `enriching` | Team-lead agent running — locked |
+| `enriched` | Plan ready, waiting for your validation |
+| `to-dev` | Validated, ready to implement |
+| `dev-in-progress` | Dev agent running — locked |
+| `to-test` | Code ready, PR open, ready to test |
+| `deployed` | Merged to dev |
+| `godeploy` | Signal: trigger merge to dev |
+
+---
+
+## Git workflow
+
+```
+main   ← production (stable)
+dev    ← integration (validated features accumulate here)
+  └─ feat/ticket-5-feature-name   ← created automatically per ticket
+```
+
+- Claude creates `feat/ticket-N-short-name` from `dev`
+- On `godeploy`: Claude opens a PR `feat/X` → `dev` and merges it
+- You merge `dev` → `main` when ready for production
+
+---
+
+## Agent logs
+
+Agents write structured logs to `~/.claude/projects/logs/<project>/YYYY-MM-DD.jsonl`.
+
+```
+/cao-show-logs                  # today's runs, grouped by ticket
+/cao-show-logs --ticket 5       # full history for ticket #5
+/cao-show-logs --errors         # only error events
+/cao-show-logs --last 10        # last 10 log entries
+```
+
+Each entry records: timestamp, agent, ticket, phase, status, duration, and contextual data.
+
+---
+
+## Context management
+
+### CLAUDE.md — project source of truth (in the repo)
+
+Update it when a new phase completes, a dependency is added, a pattern changes, or a key file is renamed.
+
+### Memory files — personal context (local only)
+
+Stored in `~/.claude/projects/<project>/memory/` — never committed.
+
+Run `/cao-save-session` at the end of each session. It updates CLAUDE.md and memory files only when justified.
+
+| Memory type | What goes here |
+|-------------|---------------|
+| `project` | Decisions, phases, deadlines |
+| `feedback` | How Claude should/shouldn't behave |
+| `user` | Your role, preferences, expertise |
+| `reference` | External systems (Linear, Notion, Grafana) |
+
+---
+
+## Optional: Schedule automation
+
+To run `/cao-process-tickets` automatically every minute:
 
 ```
 /anthropic-skills:schedule
@@ -122,84 +227,19 @@ To run `/cao-process-tickets` automatically every minute without manual interven
 
 ---
 
-## Git workflow
+## Optional: Preview URLs
 
-This kit assumes a two-branch model:
+The dev agent posts a preview URL per branch when available. This depends on your hosting:
 
-```
-main   ← production (stable)
-dev    ← integration (validated features accumulate here)
-  └─ feat/ticket-5-feature-name   ← created automatically per ticket
-```
+| Platform | Preview per branch? |
+|----------|---------------------|
+| Railway | ✅ Auto-deploys per branch |
+| Render | ✅ Preview environments per PR |
+| Vercel / Netlify | ✅ Native preview URLs |
+| Fly.io | ⚠️ Possible with scripting |
+| None | ✅ Still works — agent skips the URL step |
 
-**What happens automatically:**
-- Claude creates `feat/ticket-N-short-name` branches from `dev`
-- When you tag `godeploy`, Claude opens a PR from `feat/X` → `dev` and merges it
-- You then merge `dev` → `main` when ready for production (manually, or with your CI/CD)
-
-**You keep control of:**
-- `main` → production deploys are yours to trigger
-- Validation of enrichment plans before dev starts
-- Acceptance testing before merge (`godeploy` tag)
-
----
-
-## Context management (CLAUDE.md + memories)
-
-Claude agents work best when project context is up to date. The convention in this kit:
-
-### CLAUDE.md — project source of truth
-
-Update it when:
-- A new phase or major feature is completed
-- A new dependency or API is added
-- A critical pattern or constraint changes
-- Key files are renamed or restructured
-
-Do **not** put secrets, personal info, or team-specific configs here. It lives in the repo.
-
-### Memory files — personal/session context
-
-Stored in `~/.claude/projects/<project>/memory/` — local only, never committed.
-
-Use `/cao-save-session` at the end of each work session. It will:
-1. Detect what changed in the conversation
-2. Update `CLAUDE.md` if justified
-3. Write or update memory files for context that should persist across sessions
-4. Show you a summary of what was updated
-
-Memory types:
-
-| Type | What goes here |
-|------|---------------|
-| `project` | Decisions, objectives, phases, deadlines |
-| `feedback` | How you want Claude to behave — corrections and validated approaches |
-| `user` | Your role, preferences, technical level |
-| `reference` | External systems (Linear, Notion, Grafana, Slack channels) |
-
-### What developers should maintain
-
-- **After each session**: run `/cao-save-session`
-- **After a major change**: review and update `CLAUDE.md`
-- **When Claude behaves unexpectedly**: note it as a `feedback` memory
-
----
-
-## Is Railway required?
-
-**No.** Railway is one option for hosting preview URLs per branch — but it is not required by the kit.
-
-The `/cao-process-tickets` skill expects agents to post a **preview URL** after deployment. Where that URL comes from depends on your infrastructure:
-
-| Platform | Preview per branch? | Notes |
-|----------|--------------------|----|
-| Railway | ✅ Yes | Auto-deploys per branch, custom domains |
-| Render | ✅ Yes | Preview environments per PR |
-| Fly.io | ⚠️ Manual | Possible but requires scripting |
-| Vercel / Netlify | ✅ Yes | Native preview URLs per branch |
-| None | ✅ Still works | Agent skips URL posting, still merges |
-
-If you use Railway, the Railway MCP can be configured globally in `~/.claude/.mcp.json`:
+If using Railway, configure the MCP in `~/.claude/.mcp.json` (never in this repo):
 
 ```json
 {
@@ -207,36 +247,43 @@ If you use Railway, the Railway MCP can be configured globally in `~/.claude/.mc
     "railway": {
       "command": "npx",
       "args": ["@railway/mcp"],
-      "env": {
-        "RAILWAY_API_TOKEN": "YOUR_TOKEN_HERE"
-      }
+      "env": { "RAILWAY_API_TOKEN": "YOUR_TOKEN_HERE" }
     }
   }
 }
 ```
 
-> Tokens go in `~/.claude/.mcp.json` — **never in this repo or any project repo**.
+---
+
+## Troubleshooting
+
+**Ticket stuck in `enriching` or `dev-in-progress`**
+→ Check logs: `/cao-show-logs --errors`
+→ Manually reset label to previous state (`to-enrich` or `to-dev`)
+
+**Agent doesn't see my feedback**
+→ Change the label after commenting — the label change is the signal
+
+**Skills not showing up**
+→ Run `/plugins` and verify `claude-agents-orchestrator` is installed
 
 ---
 
 ## Requirements
 
 - **Claude Code** (CLI)
-- **GitHub CLI** (`gh`) — authenticated with `gh auth login`
-- **Python 3** — used by `lib/log.sh` to write agent run logs (pre-installed on macOS and most Linux distros)
+- **GitHub CLI** (`gh`) authenticated
+- **Python 3** — pre-installed on macOS and most Linux distros
 - A GitHub repo with `main` and `dev` branches
-- No specific deployment platform required
 
 ---
 
 ## Security
 
-This repo contains **no secrets, no API keys, no project-specific configuration**.
-
-All sensitive values go in:
+No secrets, API keys, or project-specific config in this repo. Sensitive values go in:
 - `~/.claude/.mcp.json` — MCP tokens (local, never committed)
 - `~/.claude/projects/<project>/memory/` — personal context (local, never committed)
-- `.env` files in each project (local, gitignored)
+- `.env` in each project (gitignored)
 
 ---
 

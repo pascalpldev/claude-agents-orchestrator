@@ -7,16 +7,20 @@ Use this in any project to automate enrichment, development, testing, and deploy
 ## Quick Start
 
 ```bash
-# Clone or copy into your project
-git clone https://github.com/pascalpldev/claude-agents-orchestrator.git my-project
+# 1. Install the plugin once (see README for settings.json config)
+# In Claude Code: /plugins → install claude-agents-orchestrator
 
-# Or add as submodule
-cd my-project
-git submodule add https://github.com/pascalpldev/claude-agents-orchestrator.git .claude-workflow
+# 2. In each project: create labels + dev branch
+bash ~/.claude/plugins/claude-agents-orchestrator/SETUP.sh
 
-# Setup
-cd claude-agents-orchestrator
-./SETUP.sh "my-project"
+# 3. Create CLAUDE.md at the project root (see README for template)
+
+# 4. Create your first ticket
+gh issue create --title "Feature: ..." --label "to-enrich"
+
+# 5. Run the automation
+# In Claude Code:
+/cao-process-tickets
 ```
 
 ## What This Kit Provides
@@ -26,6 +30,9 @@ cd claude-agents-orchestrator
 - **`/cao-hello-team-lead`** — Daily standup, load project state
 - **`/cao-get-ticket #N`** — Load a GitHub ticket for discussion
 - **`/cao-process-tickets`** — Poll tickets and process them (enrichment → dev → test → merge)
+- **`/cao-show-logs`** — Read structured logs from agent runs
+- **`/cao-save-session`** — Persist session context for future conversations
+- **`/cao-maintain-context`** — Audit and update CLAUDE.md + memory files
 
 ### Templates (Per-project)
 
