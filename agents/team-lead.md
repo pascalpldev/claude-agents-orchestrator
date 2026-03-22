@@ -35,22 +35,17 @@ _log "$RUN_ID" "team-lead" "$TICKET_N" "start" "started" \
 
 ### 0.0. Validate prerequisites
 
-**GitHub MCP is mandatory.** Before proceeding, verify it is configured and has repo access:
+**GitHub CLI (`gh`) is required.** Before proceeding, verify it is configured and has repo access:
 
 ```bash
-# Try to fetch the current repo info via GitHub MCP issue_read
-# This will fail with a clear error if MCP is not configured
 REMOTE=$(git remote get-url origin 2>/dev/null)
 OWNER=$(echo "$REMOTE" | sed 's|.*github\.com[:/]||' | cut -d'/' -f1)
 REPO=$(echo "$REMOTE" | sed 's|.*github\.com[:/]||' | cut -d'/' -f2 | sed 's|\.git$||')
 
-# Quick MCP healthcheck: try to list issues (minimal data, no auth errors if token is valid)
-# If this fails, GitHub MCP is not configured or token has insufficient permissions
 if ! gh api repos/$OWNER/$REPO --silent 2>/dev/null; then
   _log "$RUN_ID" "team-lead" "$TICKET_N" "error" "error" \
-    "GitHub MCP not configured or invalid token" '{"phase":"validation"}'
-  echo "ERROR: GitHub MCP is not accessible."
-  echo "Ensure GitHub MCP is configured in ~/.claude/.mcp.json with a valid token."
+    "GitHub CLI not configured or invalid token" '{"phase":"validation"}'
+  echo "ERROR: gh CLI is not accessible. Run: gh auth login"
   exit 1
 fi
 
@@ -66,9 +61,12 @@ OWNER and REPO already detected and validated in step 0.0.
 
 Using OWNER and REPO detected in step 0.0, read in this order:
 
-1. **The ticket** — use GitHub MCP `issue_read`:
-   - owner: $OWNER, repo: $REPO, issue_number: $TICKET_N
-   - Retrieve title, body, labels, existing comments
+1. **The ticket** — use `gh issue view`:
+   ```bash
+   gh issue view "$TICKET_N" --repo "$OWNER/$REPO" \
+     --json number,title,body,labels,comments,assignees
+   ```
+   Retrieve title, body, labels, existing comments.
 
 2. **CLAUDE.md** at the project root — primary source of truth for architecture
 
@@ -139,12 +137,9 @@ _log "$RUN_ID" "team-lead" "$TICKET_N" "analysis_complete" "ok" \
 
 ### 3. Write the enrichment plan
 
-Post as a GitHub comment using MCP `add_issue_comment`:
-- owner: $OWNER, repo: $REPO, issue_number: $TICKET_N
-
-Comment body:
-
-```markdown
+Post as a GitHub comment:
+```bash
+gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" --body "$(cat <<'COMMENT'
 ## Plan d'enrichissement
 
 ### Objectif
@@ -186,6 +181,8 @@ Comment body:
 - [ ] Edge case B is handled
 - [ ] Error path C returns correct status/message
 - [ ] No regression on D
+COMMENT
+)"
 ```
 
 **Good enrichment**: a dev agent can implement with no further questions. A senior developer reading this has no design decision left to make.
@@ -197,9 +194,10 @@ _log "$RUN_ID" "team-lead" "$TICKET_N" "plan_posted" "ok" \
 
 ### 4. Update ticket state
 
-Use GitHub MCP `issue_write` to update labels:
-- owner: $OWNER, repo: $REPO, issue_number: $TICKET_N
-- Remove label: `enriching`, add label: `enriched`
+```bash
+gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
+  --remove-label "enriching" --add-label "enriched"
+```
 
 ```bash
 _log "$RUN_ID" "team-lead" "$TICKET_N" "label_updated" "ok" \
@@ -226,8 +224,12 @@ _log "$RUN_ID" "team-lead" "$TICKET_N" "error" "error" \
   "Erreur: <short description>" '{"phase":"<phase>"}'
 ```
 
-Then via GitHub MCP:
-- `issue_write`: remove label `enriching`, add label `to-enrich`
-- `add_issue_comment`: "Enrichment failed: \<reason\>. Ticket reset to to-enrich."
+Then reset the ticket:
+```bash
+gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
+  --remove-label "enriching" --add-label "to-enrich"
+gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
+  --body "Enrichment failed: <reason>. Ticket reset to to-enrich."
+```
 
 Never leave a ticket stuck in `enriching`.

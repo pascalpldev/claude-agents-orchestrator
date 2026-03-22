@@ -27,10 +27,10 @@ Load a GitHub ticket with fresh context from GitHub. Perfect for discussing with
 ## What this does
 
 1. **Detect current project** from `git remote get-url origin` — extract OWNER and REPO
-2. **Fetch the ticket** using GitHub MCP:
-   - If argument is `#N` or a number: use `issue_read` (owner: $OWNER, repo: $REPO, issue_number: N)
-   - If argument is a label name (e.g. "enrichment"): use `list_issues` filtered by label
-   - If argument is a text search: use `list_issues` and match title
+2. **Fetch the ticket** using `gh` CLI:
+   - If argument is `#N` or a number: `gh issue view N --repo OWNER/REPO --json number,title,body,labels,comments,assignees`
+   - If argument is a label name (e.g. "enrichment"): `gh issue list --repo OWNER/REPO --label <label> --json number,title,labels`
+   - If argument is a text search: `gh issue list --repo OWNER/REPO --search "<text>" --json number,title,labels`
 3. **Confirm which ticket** if ambiguous
 4. **Show full context**: title, body, recent comments, current labels
 5. **Position as team-lead** ready to discuss
@@ -40,7 +40,7 @@ Load a GitHub ticket with fresh context from GitHub. Perfect for discussing with
 
 1. Parse the input: `$ARGUMENTS`
 2. Detect OWNER/REPO from `git remote get-url origin`
-3. Fetch ticket via GitHub MCP `issue_read` or `list_issues`
+3. Fetch ticket via `gh issue view` or `gh issue list`
 4. Display content
 5. Position Claude as team-lead ready to discuss
 6. When approved, trigger enrichment via the automated workflow
