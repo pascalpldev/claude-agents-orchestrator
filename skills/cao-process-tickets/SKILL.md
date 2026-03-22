@@ -24,7 +24,7 @@ Core automation workflow. Detects tickets in various states and launches the app
 Before processing:
 1. Run `git remote get-url origin` to extract OWNER and REPO
 2. Read the project's `CLAUDE.md` for architecture context
-3. Fetch open issues using GitHub MCP `list_issues` (owner: $OWNER, repo: $REPO, state: open)
+3. Fetch open issues: `gh issue list --repo $OWNER/$REPO --state open --json number,title,labels,assignees`
 
 ## What it does
 
@@ -33,21 +33,21 @@ Before processing:
 **Detects**: `to-enrich` label + no assignee
 
 ```
-a. Lock: use GitHub MCP issue_write to change label to-enrich → enriching
+a. Lock: gh issue edit N --add-label "enriching" --remove-label "to-enrich"
 b. Launch team-lead agent:
-   - Agent reads ticket via issue_read
+   - Agent reads ticket via gh issue view
    - Writes enrichment plan
-   - Posts as comment via add_issue_comment
-   - Changes label enriching → enriched via issue_write
+   - Posts as comment via gh issue comment
+   - Changes label enriching → enriched
 c. User is notified (ticket now "enriched")
 ```
 
 **If challenged**: User changes back to `to-enrich` + comments feedback
 
 ```
-a. team-lead agent re-reads comments via issue_read
+a. team-lead agent re-reads comments via gh issue view
 b. Responds to feedback
-c. Changes label to-enrich → enriched via issue_write
+c. Changes label to-enrich → enriched
 ```
 
 ### 2. Dev workflow
@@ -55,22 +55,22 @@ c. Changes label to-enrich → enriched via issue_write
 **Detects**: `to-dev` label + no assignee
 
 ```
-a. Lock: use GitHub MCP issue_write to change label to-dev → dev-in-progress
+a. Lock: gh issue edit N --add-label "dev-in-progress" --remove-label "to-dev"
 b. Launch dev agent:
-   - Agent reads full ticket + plan via issue_read
-   - Creates branch, implements, pushes (bash)
-   - Creates PR via create_pull_request MCP
-   - Posts preview URL via add_issue_comment
-   - Changes label dev-in-progress → to-test via issue_write
+   - Agent reads full ticket + plan via gh issue view
+   - Creates branch, implements, pushes (git)
+   - Creates PR via gh pr create
+   - Posts preview URL via gh issue comment
+   - Changes label dev-in-progress → to-test
 c. User is ready to test
 ```
 
 **If feedback**: User changes to `to-dev` + comments feedback
 
 ```
-a. dev agent detects change + feedback via issue_read
-b. Fixes and commits to existing branch (bash)
-c. Changes label dev-in-progress → to-test via issue_write
+a. dev agent detects change + feedback via gh issue view
+b. Fixes and commits to existing branch (git)
+c. Changes label dev-in-progress → to-test
 ```
 
 ### 3. Merge workflow
@@ -78,12 +78,12 @@ c. Changes label dev-in-progress → to-test via issue_write
 **Detects**: `godeploy` tag on `to-test` ticket
 
 ```
-a. Lock: use GitHub MCP issue_write to change label to-test → dev-in-progress
+a. Lock: gh issue edit N --add-label "dev-in-progress" --remove-label "to-test"
 b. Launch dev agent (godeploy mode):
-   - Finds PR via list_pull_requests MCP
-   - Verifies mergeable via pull_request_read MCP
-   - Merges via merge_pull_request MCP
-   - Changes label dev-in-progress → deployed via issue_write
+   - Finds PR via gh pr list
+   - Verifies mergeable via gh pr view
+   - Merges via gh pr merge
+   - Changes label dev-in-progress → deployed
 ```
 
 ## Example execution
@@ -91,26 +91,26 @@ b. Launch dev agent (godeploy mode):
 ```
 [On demand or every minute]
 
-1. GitHub MCP list_issues (label: to-enrich)
+1. gh issue list --label "to-enrich"
    → Found: #5, #12
 
 2. For ticket #5:
-   - issue_write: to-enrich → enriching (lock)
+   - gh issue edit: to-enrich → enriching (lock)
    - Launch team-lead agent → enriches + posts → enriched
 
-3. GitHub MCP list_issues (label: to-dev)
+3. gh issue list --label "to-dev"
    → Found: #3
 
 4. For ticket #3:
-   - issue_write: to-dev → dev-in-progress (lock)
+   - gh issue edit: to-dev → dev-in-progress (lock)
    - Launch dev agent → implements + pushes → to-test
 
-5. GitHub MCP list_issues (label: godeploy)
+5. gh issue list --label "godeploy"
    → Found: #1
 
 6. For ticket #1:
-   - issue_write: to-test → dev-in-progress (lock)
-   - Launch dev agent (godeploy mode) → merge_pull_request → deployed
+   - gh issue edit: to-test → dev-in-progress (lock)
+   - Launch dev agent (godeploy mode) → gh pr merge → deployed
 ```
 
 ## Implementation notes
@@ -118,6 +118,6 @@ b. Launch dev agent (godeploy mode):
 - Each run is atomic (one ticket processed per state)
 - States are locked (enriching, dev-in-progress) to prevent collisions
 - Agents detect state transitions to handle challenges/feedback
-- All GitHub operations use GitHub MCP (never `gh` CLI)
+- GitHub operations use `gh` CLI for issues/PRs; GitHub MCP for `search_code` and CI (`actions_*`)
 - Git operations (checkout, commit, push) remain bash — they are local operations
 - No hardcoded project name — auto-detected from git remote
