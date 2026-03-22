@@ -11,7 +11,7 @@ Use this in any project to automate enrichment, development, testing, and deploy
 # In Claude Code: /plugins → install claude-agents-orchestrator
 
 # 2. In each project: create labels + dev branch
-bash ~/.claude/plugins/claude-agents-orchestrator/SETUP.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/pascalpldev/claude-agents-orchestrator/main/SETUP.sh)
 
 # 3. Create CLAUDE.md at the project root (see README for template)
 

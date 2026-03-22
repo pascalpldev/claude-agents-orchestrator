@@ -31,7 +31,7 @@ Claude merges to dev
 ```bash
 # 1. In your project repo
 cd mon-projet
-bash ~/.claude/plugins/claude-agents-orchestrator/SETUP.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/pascalpldev/claude-agents-orchestrator/main/SETUP.sh)
 
 # 2. Create CLAUDE.md at the project root (see template below)
 
@@ -85,7 +85,7 @@ Claude Code plugins add skills available in **every** project session. Install o
 In your project repo, run the setup script to create GitHub labels and the `dev` branch:
 
 ```bash
-bash ~/.claude/plugins/claude-agents-orchestrator/SETUP.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/pascalpldev/claude-agents-orchestrator/main/SETUP.sh)
 ```
 
 Or manually:
@@ -216,14 +216,13 @@ Run `/cao-save-session` at the end of each session. It updates CLAUDE.md and mem
 
 ## Optional: Schedule automation
 
-To run `/cao-process-tickets` automatically every minute:
+To run `/cao-process-tickets` automatically every minute, ask Claude to create a scheduled task:
 
 ```
-/anthropic-skills:schedule
-  taskId: "poll-tickets"
-  cronExpression: "*/1 * * * *"
-  prompt: "/cao-process-tickets"
+Create a cron job that runs /cao-process-tickets every minute
 ```
+
+Claude Code will use its built-in scheduling system (`CronCreate`) to set this up.
 
 ---
 
