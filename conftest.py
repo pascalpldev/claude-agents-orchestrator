@@ -12,4 +12,4 @@ project_root = Path(__file__).parent
 lib_path = project_root / "lib"
 
 if str(lib_path) not in sys.path:
-    sys.path.insert(0, str(project_root))
+    sys.path.insert(0, str(lib_path))
