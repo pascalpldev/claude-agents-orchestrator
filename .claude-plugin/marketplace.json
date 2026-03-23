@@ -9,10 +9,6 @@
     {
       "name": "claude-agents-orchestrator",
       "description": "Automated GitHub ticket management workflow for Claude Code — enrichment, development, testing, and deployment via issue labels and agents",
-      "source": {
-        "source": "github",
-        "repo": "pascalpldev/claude-agents-orchestrator"
-      },
       "category": "development",
       "homepage": "https://github.com/pascalpldev/claude-agents-orchestrator"
     }
