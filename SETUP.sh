@@ -12,6 +12,40 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Register plugin marketplace in user's global Claude Code settings
+register_plugin_marketplace() {
+  local settings_file="$HOME/.claude/settings.json"
+  local marketplace_name="claude-agents-orchestrator"
+  local marketplace_config='{
+    "source": {
+      "source": "github",
+      "repo": "pascalpldev/claude-agents-orchestrator"
+    }
+  }'
+
+  # Create settings file if it doesn't exist
+  if [ ! -f "$settings_file" ]; then
+    mkdir -p "$(dirname "$settings_file")"
+    echo '{"extraKnownMarketplaces": {}}' > "$settings_file"
+  fi
+
+  # Check if marketplace is already registered
+  if ! grep -q "\"$marketplace_name\"" "$settings_file" 2>/dev/null; then
+    # Use jq to safely merge the marketplace config into settings.json
+    jq ".extraKnownMarketplaces[\"$marketplace_name\"] = $marketplace_config" "$settings_file" > "$settings_file.tmp" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+      mv "$settings_file.tmp" "$settings_file"
+      echo "✓ Plugin marketplace registered in ~/.claude/settings.json"
+    else
+      rm -f "$settings_file.tmp"
+      echo "⚠ Warning: Could not register plugin marketplace (jq might not be installed)"
+    fi
+  else
+    echo "✓ Plugin marketplace already registered"
+  fi
+}
+
 # 1. Create GitHub labels
 echo -e "${BLUE}Creating GitHub labels...${NC}"
 gh label create "to-enrich" --color "e2a5ff" --force 2>/dev/null || true
@@ -29,6 +63,11 @@ echo -e "${BLUE}Creating branches...${NC}"
 git checkout -b dev 2>/dev/null || git checkout dev
 git push -u origin dev 2>/dev/null || echo "Branch dev already exists"
 echo -e "${GREEN}✅ Branches ready${NC}"
+
+# 2.5. Register the plugin marketplace
+echo -e "${BLUE}Registering plugin marketplace...${NC}"
+register_plugin_marketplace
+echo -e "${GREEN}✅ Plugin marketplace setup complete${NC}"
 
 # 3. Create cao.config.yml if it doesn't exist
 if [ ! -f cao.config.yml ]; then
