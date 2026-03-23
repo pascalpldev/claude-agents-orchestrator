@@ -31,8 +31,6 @@ gh issue create --title "Feature: ..." --label "to-enrich"
 - **`/cao-get-ticket #N`** — Load a GitHub ticket for discussion
 - **`/cao-process-tickets`** — Poll tickets and process them (enrichment → dev → test → merge)
 - **`/cao-show-logs`** — Read structured logs from agent runs
-- **`/cao-save-session`** — Persist session context for future conversations
-- **`/cao-maintain-context`** — Audit and update CLAUDE.md + memory files
 
 ### Templates (Per-project)
 

@@ -100,7 +100,6 @@ This file is the first thing agents read — keep it accurate.
 | Load a ticket | `/cao-get-ticket #5` | Discuss a specific ticket with the team-lead |
 | Run automation | `/cao-process-tickets` | Enriches / implements / merges based on labels |
 | Check agent logs | `/cao-show-logs` | Timeline of what agents did (phases, durations, errors) |
-| End of session | `/cao-save-session` | Persists context to CLAUDE.md + memory files |
 
 ---
 
@@ -112,8 +111,6 @@ This file is the first thing agents read — keep it accurate.
 | `/cao-get-ticket #N` | Load a specific ticket and discuss it with Claude |
 | `/cao-process-tickets` | Core automation — poll and process all tickets |
 | `/cao-show-logs` | Read structured logs from agent runs |
-| `/cao-save-session` | Persist session context for future conversations |
-| `/cao-maintain-context` | Audit and update CLAUDE.md + memory files |
 
 ---
 
@@ -171,7 +168,6 @@ Update it when a new phase completes, a dependency is added, a pattern changes, 
 
 Stored in `~/.claude/projects/<project>/memory/` — never committed.
 
-Run `/cao-save-session` at the end of each session. It updates CLAUDE.md and memory files only when justified.
 
 | Memory type | What goes here |
 |-------------|---------------|
