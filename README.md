@@ -26,11 +26,8 @@ Claude merges to dev
 
 ## Quickstart (5 minutes)
 
-> **Prerequisite**: plugin installed globally (see [Installation](#installation) below).
-
 ```bash
-# 1. In your project repo
-cd mon-projet
+# 1. Run setup (once per project)
 bash <(curl -fsSL https://raw.githubusercontent.com/pascalpldev/claude-agents-orchestrator/main/SETUP.sh)
 
 # 2. Create CLAUDE.md at the project root (see template below)
@@ -59,49 +56,20 @@ Claude posts an enrichment plan as a GitHub comment. Review it on GitHub, change
 
 ### Step 1 — Install the plugin (once, global)
 
-Claude Code plugins add skills available in **every** project session. Install once, use everywhere.
-
-**1a.** Add to `~/.claude/settings.json`:
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "claude-agents-orchestrator": {
-      "source": {
-        "source": "github",
-        "repo": "pascalpldev/claude-agents-orchestrator"
-      }
-    }
-  }
-}
-```
-
-**1b.** In any Claude Code session, run `/plugins`, search for `claude-agents-orchestrator`, and install it.
-
-**1c.** Verify — type `/cao-` in any session and the skills should autocomplete.
-
-### Step 2 — Set up each project (per project)
-
-In your project repo, run the setup script to create GitHub labels and the `dev` branch:
+Run this setup script in any Claude Code session:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/pascalpldev/claude-agents-orchestrator/main/SETUP.sh)
 ```
 
-Or manually:
+This will:
+- ✓ Create GitHub labels for the workflow
+- ✓ Create and switch to the `dev` branch
+- ✓ Register the plugin marketplace globally
 
-```bash
-gh label create "to-enrich" --color "e2a5ff"
-gh label create "enriching" --color "ffd700"
-gh label create "enriched" --color "90ee90"
-gh label create "to-dev" --color "87ceeb"
-gh label create "dev-in-progress" --color "ff6347"
-gh label create "to-test" --color "ffa500"
-gh label create "deployed" --color "32cd32"
-gh label create "godeploy" --color "9370db"
-```
+Verify — in any Claude Code session, type `/cao-` and the skills should autocomplete.
 
-### Step 3 — Create your project's CLAUDE.md
+### Step 2 — Create your project's CLAUDE.md
 
 At the root of each project, create a `CLAUDE.md` so agents understand the codebase:
 
