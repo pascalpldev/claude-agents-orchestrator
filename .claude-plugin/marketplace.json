@@ -14,7 +14,6 @@
       "description": "Automated GitHub ticket management workflow for Claude Code — enrichment, development, testing, and deployment via issue labels and agents",
       "category": "development",
       "homepage": "https://github.com/pascalpldev/claude-agents-orchestrator",
-      "source": "https://github.com/pascalpldev/claude-agents-orchestrator",
       "license": "MIT"
     }
   ]
