@@ -5,6 +5,7 @@ Follows TDD: tests written first, then implementation.
 """
 
 import json
+import sqlite3
 import time
 from pathlib import Path
 from datetime import datetime
@@ -305,3 +306,83 @@ class TestWorker:
         assert callback_received[0] is True
         # Verify heartbeat was updated (at least twice: callback + final)
         assert mock_update.call_count >= 2
+
+    def test_worker_validates_schema_before_resume(self, worker, tmp_path):
+        """Test that resume_work validates schema before resuming."""
+        # Create a temporary database and migrations directory
+        db_path = tmp_path / "test.db"
+        migrations_dir = tmp_path / "migrations"
+        migrations_dir.mkdir()
+
+        # Create a migration file
+        migration = migrations_dir / "001_create_users.sql"
+        migration.write_text("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                name TEXT
+            )
+        """)
+
+        # Create a matching database
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                name TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+        # Define work function
+        work_called = [False]
+
+        def test_work():
+            work_called[0] = True
+
+        # resume_work should succeed and call work function
+        with patch("worker.create_lock_file"), \
+             patch("worker.update_heartbeat"), \
+             patch("worker.delete_lock_file"):
+            worker.resume_work(999, db_path, migrations_dir, work_func=test_work)
+
+        # Work should have been called
+        assert work_called[0] is True
+
+    def test_worker_resume_raises_on_schema_mismatch(self, worker, tmp_path):
+        """Test that resume_work raises ValueError on schema mismatch."""
+        # Create a temporary database and migrations directory
+        db_path = tmp_path / "test.db"
+        migrations_dir = tmp_path / "migrations"
+        migrations_dir.mkdir()
+
+        # Create a migration expecting users table with id, name, email
+        migration = migrations_dir / "001_create_users.sql"
+        migration.write_text("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                name TEXT,
+                email TEXT
+            )
+        """)
+
+        # Create a database with only id and name columns (missing email)
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                name TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+        # Define work function
+        def test_work():
+            pass
+
+        # resume_work should raise ValueError without calling work
+        with pytest.raises(ValueError, match="Schema mismatch"):
+            worker.resume_work(999, db_path, migrations_dir, work_func=test_work)

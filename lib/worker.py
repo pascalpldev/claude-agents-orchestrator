@@ -18,6 +18,7 @@ from heartbeat import (
     update_heartbeat,
     delete_lock_file,
 )
+from schema_validator import validate_resume_schema
 
 
 class Worker:
@@ -136,3 +137,36 @@ class Worker:
         finally:
             # Always clean up lock file
             delete_lock_file(lock_path)
+
+    def resume_work(
+        self,
+        ticket_id: int,
+        db_path: Path,
+        migrations_dir: Path,
+        work_func: Optional[Callable] = None,
+    ) -> None:
+        """
+        Resume work with schema validation.
+
+        Validates that the database schema matches the expected schema
+        from migrations before resuming. This prevents running migrations
+        in an unsafe state where the database and code are out of sync.
+
+        After validation, applies migrations and runs the work function.
+
+        Args:
+            ticket_id: ID of the ticket being worked on.
+            db_path: Path to the SQLite database file.
+            migrations_dir: Path to directory containing migration files.
+            work_func: Callable that performs the actual work.
+                      For long work, should accept (heartbeat_callback) parameter.
+
+        Raises:
+            ValueError: If schema mismatch detected (database out of sync with migrations).
+            Any exception raised by work_func will be re-raised after cleanup.
+        """
+        # Validate schema before proceeding
+        validate_resume_schema(db_path, migrations_dir)
+
+        # Schema is valid, proceed with work cycle
+        self.run_work_cycle(ticket_id, work_func)
