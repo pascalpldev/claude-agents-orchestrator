@@ -5,5 +5,15 @@
   "author": {
     "name": "pascalpldev"
   },
-  "repository": "https://github.com/pascalpldev/claude-agents-orchestrator"
+  "repository": "https://github.com/pascalpldev/claude-agents-orchestrator",
+  "skills": [
+    "./skills/cao-process-tickets",
+    "./skills/cao-get-ticket",
+    "./skills/cao-hello-team-lead",
+    "./skills/cao-show-logs",
+    "./skills/cao-save-session",
+    "./skills/cao-maintain-context",
+    "./skills/cao-cancel-loop",
+    "./skills/cao-worker"
+  ]
 }
