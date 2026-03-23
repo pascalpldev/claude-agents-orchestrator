@@ -80,6 +80,15 @@ When using `/cao-worker`:
 
 ## How It Works
 
+### Startup logging
+
+After parsing arguments (`--agents`, `--interval`, `--ghost-timeout`), log the worker startup event:
+
+```
+RUN_ID = current timestamp in format YYYYMMDD_HHMMSS_worker
+Run: python3 lib/logger.py "{RUN_ID}" "worker" "null" "worker_start" "ok" "worker started" '{"nb_agents":{N},"interval":{INTERVAL}}'
+```
+
 ### Agent Coordination via Labels
 
 Each worker agent:

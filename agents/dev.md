@@ -24,10 +24,10 @@ _AGENT_START=$(date +%s)
 
 _REPO_ROOT="$(git rev-parse --show-toplevel)"
 _LOG=""
-for _p in ".claude-workflow/lib/log.sh" "lib/log.sh"; do
+for _p in ".claude-workflow/lib/logger.py" "lib/logger.py"; do
   [ -f "${_REPO_ROOT}/$_p" ] && _LOG="${_REPO_ROOT}/$_p" && break
 done
-_log() { [ -n "${_LOG}" ] && bash "$_LOG" "$@" || true; }
+_log() { [ -n "${_LOG}" ] && python3 "$_LOG" "$@" || true; }
 
 _log "$RUN_ID" "dev" "$TICKET_N" "start" "started" \
   "ticket #${TICKET_N} — ${TICKET_TITLE}" '{"trigger":"dev"}'

@@ -20,6 +20,8 @@ Typical usage:
 
 import subprocess
 import json
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
@@ -32,6 +34,7 @@ from github_notifier import (
     run_gh_cli,
 )
 from agent_namer import generate_agent_name
+from logger import log_event, estimate_cost
 
 
 class WorkerOrchestrator:
@@ -152,15 +155,22 @@ class WorkerOrchestrator:
                 "error": <str> (if status == "error")
             }
         """
+        run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_wm_{self.agent_name}"
+
         try:
             # Step 1: Poll for tickets
             tickets = self.poll_for_tickets()
+            log_event(
+                run_id, "worker", None, "poll", "ok",
+                f"poll cycle — {len(tickets)} tickets found",
+                {"tickets_found": len(tickets), "next_poll_in": self.polling_interval},
+            )
             if not tickets:
                 return {"status": "no_tickets"}
 
             # Step 2: Try to claim first available ticket
             for ticket_id in tickets:
-                claimed = self.try_claim_and_work(ticket_id)
+                claimed = self.try_claim_and_work(ticket_id, run_id=run_id)
                 if claimed:
                     return {"status": "completed", "ticket": ticket_id}
 
@@ -200,7 +210,7 @@ class WorkerOrchestrator:
         except Exception as e:
             raise Exception(f"Failed to poll for tickets: {e}")
 
-    def try_claim_and_work(self, ticket_id: int) -> bool:
+    def try_claim_and_work(self, ticket_id: int, run_id: str = None) -> bool:
         """
         Claim a ticket and perform work.
 
@@ -219,9 +229,17 @@ class WorkerOrchestrator:
         Raises:
             Exception: If work fails after claiming (e.g., implementation error).
         """
+        if run_id is None:
+            run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_wm_{self.agent_name}"
+
         # Step 1: Try to assign to self (atomic claim)
         if not self._assign_to_self(ticket_id):
             return False
+
+        _start = time.time()
+        _files_read_chars = 0
+        _files_written_chars = 0
+        _tool_calls = 0
 
         try:
             # Step 2: Add labels
@@ -234,6 +252,12 @@ class WorkerOrchestrator:
             # Step 3: Create working branch
             branch_name = self._create_working_branch(ticket_id)
 
+            log_event(
+                run_id, "worker", ticket_id, "claim", "ok",
+                f"claimed ticket #{ticket_id}",
+                {"agent": self.agent_name, "branch": branch_name},
+            )
+
             # Step 4: Notify on GitHub (optional comment)
             self.notify_claim(ticket_id, branch_name)
 
@@ -241,15 +265,30 @@ class WorkerOrchestrator:
             def work_func():
                 # Stub implementation for now
                 # In real scenario, this would implement the feature
-                self._implement_feature(ticket_id, branch_name)
+                self._implement_feature(ticket_id, branch_name, run_id=run_id)
 
             self.worker.run_work_cycle(ticket_id, work_func=work_func)
 
             # Step 6: Create PR
-            pr_url = self._create_pull_request(ticket_id, branch_name)
+            pr_url = self._create_pull_request(ticket_id, branch_name, run_id=run_id)
 
             # Step 7: Cleanup labels and add to-test
             cleanup_labels_after_pr(self.repo, ticket_id, self.agent_name)
+
+            duration = int(time.time() - _start)
+            cost = estimate_cost("claude-sonnet-4-6", _files_read_chars, _files_written_chars)
+            log_event(
+                run_id, "dev", ticket_id, "end", "success",
+                f"ticket #{ticket_id} completed",
+                {
+                    "duration_seconds": duration,
+                    "model": "claude-sonnet-4-6",
+                    "files_read_chars": _files_read_chars,
+                    "files_written_chars": _files_written_chars,
+                    "tool_calls_count": _tool_calls,
+                    "cost_usd_estimated": cost,
+                },
+            )
 
             return True
 
@@ -339,7 +378,7 @@ class WorkerOrchestrator:
             # Log but don't fail the claim
             print(f"Warning: Failed to post claim notification: {e}")
 
-    def _implement_feature(self, ticket_id: int, branch_name: str) -> None:
+    def _implement_feature(self, ticket_id: int, branch_name: str, run_id: str = None) -> None:
         """
         Stub for feature implementation.
 
@@ -354,7 +393,11 @@ class WorkerOrchestrator:
         Args:
             ticket_id: The issue number.
             branch_name: The working branch name.
+            run_id: Run identifier for logging.
         """
+        if run_id is None:
+            run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_wm_{self.agent_name}"
+
         # Stub: Log that work is happening
         print(f"Implementing feature for ticket #{ticket_id} on branch {branch_name}")
 
@@ -366,7 +409,27 @@ class WorkerOrchestrator:
         # 5. git add / git commit
         # 6. git push origin branch_name
 
-    def _create_pull_request(self, ticket_id: int, branch_name: str) -> str:
+        # Log committed event if a commit was made (stub: skip if no commit exists)
+        try:
+            result = subprocess.run(
+                ["git", "log", "-1", "--format=%H %s"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                parts = result.stdout.strip().split(" ", 1)
+                commit_hash = parts[0]
+                commit_msg = parts[1] if len(parts) > 1 else ""
+                log_event(
+                    run_id, "dev", ticket_id, "committed", "ok",
+                    f"committed changes for ticket #{ticket_id}",
+                    {"hash": commit_hash[:8], "message": commit_msg},
+                )
+        except Exception:
+            pass
+
+    def _create_pull_request(self, ticket_id: int, branch_name: str, run_id: str = None) -> str:
         """
         Create a pull request from working branch to dev.
 
@@ -376,6 +439,9 @@ class WorkerOrchestrator:
         Raises:
             Exception: If PR creation fails.
         """
+        if run_id is None:
+            run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_wm_{self.agent_name}"
+
         try:
             # Push working branch
             subprocess.run(
@@ -383,6 +449,11 @@ class WorkerOrchestrator:
                 cwd=self.project_root,
                 check=True,
                 capture_output=True,
+            )
+            log_event(
+                run_id, "dev", ticket_id, "pushed", "ok",
+                f"pushed branch {branch_name}",
+                {"branch": branch_name, "remote": "origin"},
             )
 
             # Create PR via gh CLI
