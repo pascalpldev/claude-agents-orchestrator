@@ -252,6 +252,9 @@ class TestEstimateCost:
 class TestGetProjectSlug:
     """Tests for _get_project_slug()."""
 
+    def setup_method(self):
+        _get_project_slug.cache_clear()
+
     def test_ssh_url(self):
         mock_result = MagicMock()
         mock_result.returncode = 0

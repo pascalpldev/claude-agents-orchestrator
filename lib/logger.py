@@ -7,11 +7,18 @@ Dual interface:
   Python: from logger import log_event, estimate_cost
 """
 
+import functools
 import json
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import fcntl
+    _FCNTL_AVAILABLE = True
+except ImportError:
+    _FCNTL_AVAILABLE = False
 
 PRICING = {
     "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
@@ -20,6 +27,7 @@ PRICING = {
 }
 
 
+@functools.lru_cache(maxsize=1)
 def _get_project_slug():
     """git remote get-url origin -> owner-repo. Returns 'unknown' on failure."""
     try:
@@ -108,7 +116,14 @@ def log_event(
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            if _FCNTL_AVAILABLE:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                try:
+                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+            else:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception:
         # Logging must never block the agent
         pass
