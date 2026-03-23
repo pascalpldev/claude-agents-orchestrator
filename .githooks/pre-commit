@@ -1,0 +1,37 @@
+#!/bin/bash
+set -e
+
+MIGRATIONS_DIR="migrations"
+ERROR=0
+
+if [ ! -d "$MIGRATIONS_DIR" ]; then
+    exit 0
+fi
+
+for file in $(git diff --cached --name-only | grep "^$MIGRATIONS_DIR/.*\.sql$"); do
+    # Check CREATE TABLE without IF NOT EXISTS
+    if grep -q "^CREATE TABLE" "$file" && ! grep -q "CREATE TABLE IF NOT EXISTS" "$file"; then
+        echo "ERROR: $file contains CREATE TABLE without IF NOT EXISTS"
+        ERROR=1
+    fi
+
+    # Check CREATE INDEX without IF NOT EXISTS
+    if grep -q "^CREATE INDEX" "$file" && ! grep -q "CREATE INDEX IF NOT EXISTS" "$file"; then
+        echo "ERROR: $file contains CREATE INDEX without IF NOT EXISTS"
+        ERROR=1
+    fi
+
+    # Check for DROP statements (forbidden)
+    if grep -q "^DROP" "$file"; then
+        echo "ERROR: $file contains DROP statement (migrations must be additive only)"
+        ERROR=1
+    fi
+done
+
+if [ $ERROR -eq 1 ]; then
+    echo ""
+    echo "Migration validation failed."
+    exit 1
+fi
+
+exit 0

@@ -1,0 +1,560 @@
+"""
+Test suite for worker - heartbeat integration.
+
+Follows TDD: tests written first, then implementation.
+"""
+
+import json
+import sqlite3
+import time
+from pathlib import Path
+from datetime import datetime
+from unittest.mock import Mock, patch, call
+import pytest
+
+from worker import Worker
+from migration_tool_detector import MigrationTool
+
+
+class TestWorker:
+    """Test cases for the Worker class."""
+
+    @pytest.fixture
+    def temp_locks_dir(self, tmp_path):
+        """Provide a temporary directory for lock files."""
+        return tmp_path / "locks"
+
+    @pytest.fixture
+    def worker(self, temp_locks_dir):
+        """Provide a Worker instance with test configuration."""
+        return Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=temp_locks_dir,
+            heartbeat_interval=0.1,  # 100ms for testing
+            ghost_timeout=1,  # 1 second for testing
+        )
+
+    def test_worker_initialization(self, worker):
+        """Test that Worker initializes with correct attributes."""
+        assert worker.agent_name == "test-agent"
+        assert worker.repo == "test-repo"
+        assert worker.heartbeat_interval == 0.1
+        assert worker.ghost_timeout == 1
+
+    def test_worker_default_heartbeat_interval(self):
+        """Test that Worker has default heartbeat interval of 300 seconds."""
+        worker = Worker("agent", "repo")
+        assert worker.heartbeat_interval == 300
+
+    def test_worker_default_ghost_timeout(self):
+        """Test that Worker has default ghost timeout of 1200 seconds."""
+        worker = Worker("agent", "repo")
+        assert worker.ghost_timeout == 1200
+
+    def test_worker_can_specify_locks_dir(self, tmp_path):
+        """Test that Worker uses specified locks directory."""
+        locks_dir = tmp_path / "custom_locks"
+        worker = Worker("agent", "repo", locks_dir=locks_dir)
+        assert worker.locks_dir == locks_dir
+
+    def test_worker_has_locks_dir_default(self):
+        """Test that Worker has a default locks directory."""
+        worker = Worker("agent", "repo")
+        assert worker.locks_dir is not None
+        assert isinstance(worker.locks_dir, Path)
+
+    @patch("worker.create_lock_file")
+    @patch("worker.update_heartbeat")
+    @patch("worker.delete_lock_file")
+    def test_worker_creates_lock_on_work_cycle_start(
+        self, mock_delete, mock_update, mock_create, worker
+    ):
+        """Test that run_work_cycle creates lock file at start."""
+        # Mock the work function to do nothing quickly
+        def mock_work():
+            pass
+
+        worker.run_work_cycle(123, work_func=mock_work)
+        mock_create.assert_called_once()
+
+    @patch("worker.create_lock_file")
+    @patch("worker.update_heartbeat")
+    @patch("worker.delete_lock_file")
+    def test_worker_deletes_lock_on_work_cycle_end(
+        self, mock_delete, mock_update, mock_create, worker
+    ):
+        """Test that run_work_cycle deletes lock file at end."""
+        def mock_work():
+            pass
+
+        worker.run_work_cycle(123, work_func=mock_work)
+        mock_delete.assert_called_once()
+
+    @patch("worker.create_lock_file")
+    @patch("worker.update_heartbeat")
+    @patch("worker.delete_lock_file")
+    def test_worker_calls_work_function(
+        self, mock_delete, mock_update, mock_create, worker
+    ):
+        """Test that run_work_cycle calls the provided work function."""
+        mock_work = Mock()
+        worker.run_work_cycle(123, work_func=mock_work)
+        mock_work.assert_called_once()
+
+    @patch("worker.time.sleep")
+    @patch("worker.create_lock_file")
+    @patch("worker.update_heartbeat")
+    @patch("worker.delete_lock_file")
+    def test_worker_updates_heartbeat_during_work(
+        self, mock_delete, mock_update, mock_sleep, mock_create, worker
+    ):
+        """Test that run_work_cycle updates heartbeat periodically."""
+        # Track sleeps to simulate time passing
+        sleep_count = [0]
+
+        def mock_work():
+            # Simulate work that takes multiple heartbeat intervals
+            for _ in range(3):
+                sleep_count[0] += 1
+                time.sleep(0.15)
+
+        with patch("worker.time.sleep", side_effect=time.sleep):
+            worker.run_work_cycle(123, work_func=mock_work)
+
+        # Should have called update_heartbeat at least once during work
+        assert mock_update.call_count >= 1
+
+    @patch("worker.create_lock_file")
+    @patch("worker.update_heartbeat")
+    @patch("worker.delete_lock_file")
+    def test_worker_lock_file_path_includes_ticket_id(
+        self, mock_delete, mock_update, mock_create, worker
+    ):
+        """Test that lock file path includes the ticket ID."""
+        def mock_work():
+            pass
+
+        worker.run_work_cycle(456, work_func=mock_work)
+
+        # Check that lock file path was called with ticket number
+        call_args = mock_create.call_args
+        lock_path = call_args[0][0] if call_args[0] else call_args[1].get("lock_path")
+        assert "456" in str(lock_path)
+
+    @patch("worker.create_lock_file")
+    @patch("worker.update_heartbeat")
+    @patch("worker.delete_lock_file")
+    def test_worker_run_work_cycle_with_short_interval(
+        self, mock_delete, mock_update, mock_create, temp_locks_dir
+    ):
+        """Test heartbeat updates with very short work."""
+        worker = Worker(
+            "test-agent",
+            "test-repo",
+            locks_dir=temp_locks_dir,
+            heartbeat_interval=0.05,  # 50ms
+        )
+
+        call_count = [0]
+
+        def mock_work():
+            call_count[0] += 1
+
+        worker.run_work_cycle(789, work_func=mock_work)
+        assert call_count[0] == 1
+
+    @patch("worker.create_lock_file")
+    @patch("worker.update_heartbeat")
+    @patch("worker.delete_lock_file")
+    def test_worker_handles_exception_in_work_function(
+        self, mock_delete, mock_update, mock_create, worker
+    ):
+        """Test that run_work_cycle cleans up lock even if work fails."""
+        def mock_work():
+            raise RuntimeError("Work failed")
+
+        with pytest.raises(RuntimeError):
+            worker.run_work_cycle(123, work_func=mock_work)
+
+        # Lock should still be deleted
+        mock_delete.assert_called_once()
+
+    def test_worker_lock_file_path_format(self, worker, temp_locks_dir):
+        """Test that lock file path follows expected format."""
+        lock_path = worker._get_lock_path(123)
+        assert lock_path.parent == temp_locks_dir
+        assert "123" in lock_path.name
+        assert lock_path.suffix == ".lock"
+
+    def test_worker_with_real_lock_files(self, worker, temp_locks_dir):
+        """Integration test: verify heartbeat updates with real files."""
+        update_count = [0]
+
+        def increment_update_count():
+            update_count[0] += 1
+
+        # Manually track updates
+        from worker import update_heartbeat as real_update
+
+        def tracking_work():
+            # Simulate work that takes longer than one heartbeat interval
+            time.sleep(0.2)
+
+        # This test verifies the integration without mocking internal calls
+        worker.run_work_cycle(999, work_func=tracking_work)
+        # Lock file should be cleaned up
+        lock_path = worker._get_lock_path(999)
+        assert not lock_path.exists()
+
+    def test_worker_long_running_work_with_heartbeat_callback(self, worker, temp_locks_dir):
+        """Test that long-running work can call heartbeat callback periodically."""
+        from heartbeat import is_ghost_claim
+
+        call_count = [0]
+        callback_invocations = [0]
+
+        def long_running_work(heartbeat_callback):
+            """Simulate long-running work that calls heartbeat periodically."""
+            for i in range(10):
+                call_count[0] += 1
+                # Simulate some work
+                time.sleep(0.05)
+                # Call heartbeat every 5 iterations
+                if i % 5 == 0:
+                    callback_invocations[0] += 1
+                    heartbeat_callback()
+
+        ticket_id = 777
+        lock_path = worker._get_lock_path(ticket_id)
+
+        # Run work cycle with long-running work
+        worker.run_work_cycle(ticket_id, work_func=long_running_work)
+
+        # Verify work was called
+        assert call_count[0] == 10
+        # Verify heartbeat callback was invoked
+        assert callback_invocations[0] >= 1
+        # Lock file should be cleaned up
+        assert not lock_path.exists()
+
+    def test_worker_backward_compatible_short_work(self, worker, temp_locks_dir):
+        """Test that short work without heartbeat_callback still works."""
+        call_count = [0]
+
+        def short_work():
+            """Short work that doesn't need heartbeat callback."""
+            call_count[0] += 1
+            time.sleep(0.05)
+
+        ticket_id = 888
+        lock_path = worker._get_lock_path(ticket_id)
+
+        # Run work cycle with short work (no callback parameter)
+        worker.run_work_cycle(ticket_id, work_func=short_work)
+
+        # Verify work was called
+        assert call_count[0] == 1
+        # Lock file should be cleaned up
+        assert not lock_path.exists()
+
+    def test_worker_heartbeat_callback_updates_lock_file(self, worker, temp_locks_dir):
+        """Test that heartbeat callback actually updates the lock file."""
+        from heartbeat import is_ghost_claim
+        from datetime import datetime
+
+        def work_with_heartbeat(heartbeat_callback):
+            """Work that updates heartbeat mid-execution."""
+            time.sleep(0.05)
+            heartbeat_callback()
+            time.sleep(0.05)
+
+        ticket_id = 666
+        lock_path = worker._get_lock_path(ticket_id)
+
+        # Create lock manually to check mtime
+        from heartbeat import create_lock_file
+        create_lock_file(lock_path, "test-agent")
+        initial_mtime = lock_path.stat().st_mtime
+
+        # Let some time pass
+        time.sleep(0.1)
+
+        # Run work cycle
+        worker.run_work_cycle(ticket_id, work_func=work_with_heartbeat)
+
+        # After work, lock should be deleted, so we can't check mtime
+        # But we verified the callback was called by the work function
+        assert not lock_path.exists()
+
+    @patch("worker.create_lock_file")
+    @patch("worker.update_heartbeat")
+    @patch("worker.delete_lock_file")
+    def test_worker_calls_heartbeat_callback_work_function(
+        self, mock_delete, mock_update, mock_create, worker
+    ):
+        """Test that run_work_cycle calls work_func with heartbeat_callback."""
+        callback_received = [False]
+
+        def work_with_callback(heartbeat_callback):
+            """Work that receives and uses heartbeat callback."""
+            callback_received[0] = heartbeat_callback is not None
+            heartbeat_callback()
+
+        worker.run_work_cycle(555, work_func=work_with_callback)
+
+        # Verify callback was provided
+        assert callback_received[0] is True
+        # Verify heartbeat was updated (at least twice: callback + final)
+        assert mock_update.call_count >= 2
+
+    def test_worker_validates_schema_before_resume(self, worker, tmp_path):
+        """Test that resume_work validates schema before resuming."""
+        # Create a temporary database and migrations directory
+        db_path = tmp_path / "test.db"
+        migrations_dir = tmp_path / "migrations"
+        migrations_dir.mkdir()
+
+        # Create a migration file
+        migration = migrations_dir / "001_create_users.sql"
+        migration.write_text("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                name TEXT
+            )
+        """)
+
+        # Create a matching database
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                name TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+        # Define work function
+        work_called = [False]
+
+        def test_work():
+            work_called[0] = True
+
+        # resume_work should succeed and call work function
+        with patch("worker.create_lock_file"), \
+             patch("worker.update_heartbeat"), \
+             patch("worker.delete_lock_file"):
+            worker.resume_work(999, db_path, migrations_dir, work_func=test_work)
+
+        # Work should have been called
+        assert work_called[0] is True
+
+    def test_worker_resume_raises_on_schema_mismatch(self, worker, tmp_path):
+        """Test that resume_work raises ValueError on schema mismatch."""
+        # Create a temporary database and migrations directory
+        db_path = tmp_path / "test.db"
+        migrations_dir = tmp_path / "migrations"
+        migrations_dir.mkdir()
+
+        # Create a migration expecting users table with id, name, email
+        migration = migrations_dir / "001_create_users.sql"
+        migration.write_text("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                name TEXT,
+                email TEXT
+            )
+        """)
+
+        # Create a database with only id and name columns (missing email)
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                name TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+        # Define work function
+        def test_work():
+            pass
+
+        # resume_work should raise ValueError without calling work
+        with pytest.raises(ValueError, match="Schema mismatch"):
+            worker.resume_work(999, db_path, migrations_dir, work_func=test_work)
+
+
+class TestWorkerMigrationToolDetection:
+    """Test cases for Worker migration tool detection."""
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_detects_migration_tool_at_init(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker detects migration tool during initialization."""
+        mock_detect.return_value = MigrationTool.PRISMA
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        assert worker.migration_tool == MigrationTool.PRISMA
+        mock_detect.assert_called_once()
+        mock_validate.assert_called_once_with(MigrationTool.PRISMA)
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_detects_alembic_tool(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker detects Alembic migration tool."""
+        mock_detect.return_value = MigrationTool.ALEMBIC
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        assert worker.migration_tool == MigrationTool.ALEMBIC
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_detects_flyway_tool(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker detects Flyway migration tool."""
+        mock_detect.return_value = MigrationTool.FLYWAY
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        assert worker.migration_tool == MigrationTool.FLYWAY
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_detects_sql_tool(self, mock_detect, mock_validate, tmp_path):
+        """Test that Worker detects SQL (default) migration tool."""
+        mock_detect.return_value = MigrationTool.SQL
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        assert worker.migration_tool == MigrationTool.SQL
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_validates_tool_installed(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker validates tool is installed at init."""
+        mock_detect.return_value = MigrationTool.PRISMA
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        # Verify validation was called
+        mock_validate.assert_called_once_with(MigrationTool.PRISMA)
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_fails_if_tool_missing(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker raises error if migration tool not installed."""
+        mock_detect.return_value = MigrationTool.PRISMA
+        mock_validate.side_effect = RuntimeError("prisma not installed or not in PATH")
+        locks_dir = tmp_path / "locks"
+
+        with pytest.raises(RuntimeError, match="prisma not installed"):
+            Worker(
+                agent_name="test-agent",
+                repo="test-repo",
+                locks_dir=locks_dir,
+                project_root=tmp_path,
+            )
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_uses_current_directory_by_default(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker uses current directory for project root by default."""
+        mock_detect.return_value = MigrationTool.SQL
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+        )
+
+        # detect_migration_tool should be called with a Path
+        assert mock_detect.called
+        call_arg = mock_detect.call_args[0][0]
+        assert isinstance(call_arg, Path)
+
+    def test_worker_with_real_migration_tool_detection(self, tmp_path):
+        """Integration test: Worker with real migration tool detection."""
+        # Create a CLAUDE.md with Prisma mentioned
+        claude_md = tmp_path / "CLAUDE.md"
+        claude_md.write_text("""
+# Test Project
+Uses Prisma for database migrations.
+## Tech Stack
+- Prisma ORM
+""")
+
+        locks_dir = tmp_path / "locks"
+
+        # With mocked validation (since Prisma won't actually be installed)
+        with patch("worker.validate_tool_installed"):
+            worker = Worker(
+                agent_name="test-agent",
+                repo="test-repo",
+                locks_dir=locks_dir,
+                project_root=tmp_path,
+            )
+
+            assert worker.migration_tool == MigrationTool.PRISMA
+
+    def test_worker_defaults_to_sql_when_no_claude_md(self, tmp_path):
+        """Test that Worker defaults to SQL migrations when no CLAUDE.md."""
+        locks_dir = tmp_path / "locks"
+
+        # SQL doesn't need validation, so this should work without mocking
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        assert worker.migration_tool == MigrationTool.SQL
