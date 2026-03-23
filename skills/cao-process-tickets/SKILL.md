@@ -136,6 +136,17 @@ CronCreate(
 )
 ```
 
+After CronCreate:
+- If CronCreate succeeds, log the worker_start event:
+  ```
+  RUN_ID = current timestamp in format YYYYMMDD_HHMMSS_loop
+  Run: python3 lib/logger.py "{RUN_ID}" "worker" "null" "worker_start" "ok" "loop started" '{"role":"{ROLE}","interval":{INTERVAL},"loop":true}'
+  ```
+- If CronCreate fails, log a schedule_error:
+  ```
+  Run: python3 lib/logger.py "{RUN_ID}" "worker" "null" "schedule_error" "error" "CronCreate failed" '{"role":"{ROLE}"}'
+  ```
+
 Then output:
 ```
 ⏱️  Next run in {INTERVAL} min (cron: cao-process-{ROLE})

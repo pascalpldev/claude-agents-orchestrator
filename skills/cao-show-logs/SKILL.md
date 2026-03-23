@@ -12,7 +12,7 @@ description: |
     /cao-show-logs --ticket 12        — full history for ticket #12
     /cao-show-logs --agent team-lead  — runs by team-lead only
     /cao-show-logs --errors           — only runs with error events
-argument-hint: "[--errors] [--ticket N] [--last N] [--agent team-lead|dev]"
+argument-hint: "[--errors] [--ticket N] [--last N] [--agent team-lead|dev] [--verbose] [--quiet]"
 allowed-tools: [Bash, Read]
 ---
 
@@ -95,6 +95,15 @@ if "--last" in args:
         n = int(m.group(1))
         entries = entries[-n:]
 
+# Verbosity filtering (applied AFTER other filters)
+if "--quiet" in args:
+    entries = [e for e in entries if e.get("status") == "error"]
+elif "--verbose" not in args:
+    # Default: hide worker infrastructure events (poll, heartbeat)
+    entries = [e for e in entries if not (
+        e.get("agent") == "worker" and e.get("phase") in ["poll", "heartbeat"]
+    )]
+
 for e in entries:
     print(json.dumps(e))
 ```
@@ -144,6 +153,35 @@ Runs : 2  |  Tickets : 1  |  Erreurs : 0
 Durée moy. team-lead : 47s  |  Durée moy. dev : 116s
 ```
 
+**For `--quiet` mode**, replace the full table with a summary block:
+
+```
+=== Résumé — <project> — <date range> ===
+
+Tickets traités : N  |  Erreurs : E
+Coût estimé total : ~$X.XX  |  Durée moy. : Xs
+Modèles : claude-sonnet-4-6 (N runs), claude-haiku-4-5 (M runs)
+```
+
+**Cost calculation** — for each entry with `phase="end"`, compute estimated cost:
+
+```python
+PRICING = {
+    "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
+    "claude-haiku-4-5":  {"input": 0.25, "output": 1.25},
+    "claude-opus-4-6":   {"input": 15.0, "output": 75.0},
+}
+files_read    = entry.get("data", {}).get("files_read_chars", 0)
+files_written = entry.get("data", {}).get("files_written_chars", 0)
+model         = entry.get("data", {}).get("model", "claude-sonnet-4-6")
+if model in PRICING:
+    cost = (
+        files_read    / 4 * PRICING[model]["input"] +
+        files_written / 4 * PRICING[model]["output"]
+    ) / 1_000_000
+    # display as "~$X.XX" in the end row and include in --quiet summary total
+```
+
 **For `--errors` mode**, highlight errors prominently:
 
 ```
@@ -163,3 +201,6 @@ Durée moy. team-lead : 47s  |  Durée moy. dev : 116s
 - Flatten `data` JSON to `key=value` pairs (truncate at 60 chars) for the Message column
 - If no entries match the filter: print `No entries found for the given filter.`
 - If `python3` unavailable: `cat ${LOG_DIR}/*.jsonl 2>/dev/null || echo "No logs."` + note to install python3
+- `--verbose`: show all events including poll and heartbeat worker events
+- `--quiet`: show only error entries + summary block with total estimated cost
+- Default: hide poll and heartbeat events (`agent="worker"` with `phase` in `[poll, heartbeat]`)
