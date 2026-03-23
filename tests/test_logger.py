@@ -136,6 +136,12 @@ class TestLogEvent:
         entry = json.loads(log_file.read_text(encoding="utf-8"))
         assert entry["msg"] == "héllo wörld — 日本語"
 
+    def test_non_serializable_data_does_not_raise(self, tmp_path):
+        log_file = tmp_path / "out.jsonl"
+        with patch("logger._get_log_path", return_value=log_file):
+            # object() is not JSON-serializable; log_event must not raise
+            log_event("rid", "dev", 1, "p", "ok", data={"key": object()}, project="proj")
+
 
 class TestCLIInterface:
     """Tests for the command-line interface."""
@@ -181,6 +187,13 @@ class TestCLIInterface:
                 logger._main()
         entry = json.loads(log_file.read_text())
         assert entry["data"] == {"raw": "not-valid-json"}
+
+    def test_exactly_4_user_args_exits_1(self):
+        # 5 elements in sys.argv = script name + 4 user args → len < 6 → exit(1)
+        with patch.object(sys, "argv", ["logger.py", "run_id", "dev", "5", "start"]):
+            with pytest.raises(SystemExit) as exc_info:
+                logger._main()
+        assert exc_info.value.code == 1
 
     def test_ticket_null_string_normalizes(self, tmp_path):
         log_file = tmp_path / "out.jsonl"
