@@ -19,6 +19,11 @@ from heartbeat import (
     delete_lock_file,
 )
 from schema_validator import validate_resume_schema
+from migration_tool_detector import (
+    detect_migration_tool,
+    validate_tool_installed,
+    MigrationTool,
+)
 
 
 class Worker:
@@ -31,6 +36,7 @@ class Worker:
         locks_dir: Directory to store lock files.
         heartbeat_interval: Seconds between heartbeat updates (default: 300 = 5 min).
         ghost_timeout: Seconds before claim is considered ghost (default: 1200 = 20 min).
+        migration_tool: Detected migration tool (Prisma, Alembic, Flyway, or SQL).
     """
 
     def __init__(
@@ -40,9 +46,12 @@ class Worker:
         locks_dir: Optional[Path] = None,
         heartbeat_interval: int = 300,
         ghost_timeout: int = 1200,
+        project_root: Optional[Path] = None,
     ):
         """
         Initialize a Worker.
+
+        Detects migration tool from CLAUDE.md and validates installation.
 
         Args:
             agent_name: Name of the agent running this worker.
@@ -50,6 +59,11 @@ class Worker:
             locks_dir: Directory to store lock files. Defaults to .locks/
             heartbeat_interval: Seconds between heartbeat updates (default: 300).
             ghost_timeout: Seconds before claim is ghost (default: 1200).
+            project_root: Path to project root (for migration tool detection).
+                         Defaults to current directory.
+
+        Raises:
+            RuntimeError: If configured migration tool is not installed.
 
         Note:
             heartbeat_interval should be well below ghost_timeout. Default values
@@ -61,6 +75,11 @@ class Worker:
         self.heartbeat_interval = heartbeat_interval
         self.ghost_timeout = ghost_timeout
         self.last_heartbeat_time = time.time()
+
+        # Detect and validate migration tool
+        project_root = project_root or Path.cwd()
+        self.migration_tool = detect_migration_tool(project_root)
+        validate_tool_installed(self.migration_tool)
 
     def _get_lock_path(self, ticket_id: int) -> Path:
         """

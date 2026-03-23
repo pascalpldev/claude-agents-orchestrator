@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch, call
 import pytest
 
 from worker import Worker
+from migration_tool_detector import MigrationTool
 
 
 class TestWorker:
@@ -386,3 +387,174 @@ class TestWorker:
         # resume_work should raise ValueError without calling work
         with pytest.raises(ValueError, match="Schema mismatch"):
             worker.resume_work(999, db_path, migrations_dir, work_func=test_work)
+
+
+class TestWorkerMigrationToolDetection:
+    """Test cases for Worker migration tool detection."""
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_detects_migration_tool_at_init(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker detects migration tool during initialization."""
+        mock_detect.return_value = MigrationTool.PRISMA
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        assert worker.migration_tool == MigrationTool.PRISMA
+        mock_detect.assert_called_once()
+        mock_validate.assert_called_once_with(MigrationTool.PRISMA)
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_detects_alembic_tool(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker detects Alembic migration tool."""
+        mock_detect.return_value = MigrationTool.ALEMBIC
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        assert worker.migration_tool == MigrationTool.ALEMBIC
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_detects_flyway_tool(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker detects Flyway migration tool."""
+        mock_detect.return_value = MigrationTool.FLYWAY
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        assert worker.migration_tool == MigrationTool.FLYWAY
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_detects_sql_tool(self, mock_detect, mock_validate, tmp_path):
+        """Test that Worker detects SQL (default) migration tool."""
+        mock_detect.return_value = MigrationTool.SQL
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        assert worker.migration_tool == MigrationTool.SQL
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_validates_tool_installed(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker validates tool is installed at init."""
+        mock_detect.return_value = MigrationTool.PRISMA
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        # Verify validation was called
+        mock_validate.assert_called_once_with(MigrationTool.PRISMA)
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_fails_if_tool_missing(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker raises error if migration tool not installed."""
+        mock_detect.return_value = MigrationTool.PRISMA
+        mock_validate.side_effect = RuntimeError("prisma not installed or not in PATH")
+        locks_dir = tmp_path / "locks"
+
+        with pytest.raises(RuntimeError, match="prisma not installed"):
+            Worker(
+                agent_name="test-agent",
+                repo="test-repo",
+                locks_dir=locks_dir,
+                project_root=tmp_path,
+            )
+
+    @patch("worker.validate_tool_installed")
+    @patch("worker.detect_migration_tool")
+    def test_worker_uses_current_directory_by_default(
+        self, mock_detect, mock_validate, tmp_path
+    ):
+        """Test that Worker uses current directory for project root by default."""
+        mock_detect.return_value = MigrationTool.SQL
+        locks_dir = tmp_path / "locks"
+
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+        )
+
+        # detect_migration_tool should be called with a Path
+        assert mock_detect.called
+        call_arg = mock_detect.call_args[0][0]
+        assert isinstance(call_arg, Path)
+
+    def test_worker_with_real_migration_tool_detection(self, tmp_path):
+        """Integration test: Worker with real migration tool detection."""
+        # Create a CLAUDE.md with Prisma mentioned
+        claude_md = tmp_path / "CLAUDE.md"
+        claude_md.write_text("""
+# Test Project
+Uses Prisma for database migrations.
+## Tech Stack
+- Prisma ORM
+""")
+
+        locks_dir = tmp_path / "locks"
+
+        # With mocked validation (since Prisma won't actually be installed)
+        with patch("worker.validate_tool_installed"):
+            worker = Worker(
+                agent_name="test-agent",
+                repo="test-repo",
+                locks_dir=locks_dir,
+                project_root=tmp_path,
+            )
+
+            assert worker.migration_tool == MigrationTool.PRISMA
+
+    def test_worker_defaults_to_sql_when_no_claude_md(self, tmp_path):
+        """Test that Worker defaults to SQL migrations when no CLAUDE.md."""
+        locks_dir = tmp_path / "locks"
+
+        # SQL doesn't need validation, so this should work without mocking
+        worker = Worker(
+            agent_name="test-agent",
+            repo="test-repo",
+            locks_dir=locks_dir,
+            project_root=tmp_path,
+        )
+
+        assert worker.migration_tool == MigrationTool.SQL
