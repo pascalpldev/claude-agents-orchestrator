@@ -50,7 +50,13 @@ else
   echo -e "${GREEN}✅ cao.config.yml already exists${NC}"
 fi
 
-# 4. Info
+# 4. Install pre-commit hook
+echo -e "${BLUE}Installing pre-commit hook...${NC}"
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-commit
+echo -e "${GREEN}✅ Pre-commit hook installed${NC}"
+
+# 5. Info
 echo ""
 echo -e "${GREEN}✅ Claude Agents Orchestrator setup complete!${NC}"
 echo ""
