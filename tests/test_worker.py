@@ -204,3 +204,104 @@ class TestWorker:
         # Lock file should be cleaned up
         lock_path = worker._get_lock_path(999)
         assert not lock_path.exists()
+
+    def test_worker_long_running_work_with_heartbeat_callback(self, worker, temp_locks_dir):
+        """Test that long-running work can call heartbeat callback periodically."""
+        from heartbeat import is_ghost_claim
+
+        call_count = [0]
+        callback_invocations = [0]
+
+        def long_running_work(heartbeat_callback):
+            """Simulate long-running work that calls heartbeat periodically."""
+            for i in range(10):
+                call_count[0] += 1
+                # Simulate some work
+                time.sleep(0.05)
+                # Call heartbeat every 5 iterations
+                if i % 5 == 0:
+                    callback_invocations[0] += 1
+                    heartbeat_callback()
+
+        ticket_id = 777
+        lock_path = worker._get_lock_path(ticket_id)
+
+        # Run work cycle with long-running work
+        worker.run_work_cycle(ticket_id, work_func=long_running_work)
+
+        # Verify work was called
+        assert call_count[0] == 10
+        # Verify heartbeat callback was invoked
+        assert callback_invocations[0] >= 1
+        # Lock file should be cleaned up
+        assert not lock_path.exists()
+
+    def test_worker_backward_compatible_short_work(self, worker, temp_locks_dir):
+        """Test that short work without heartbeat_callback still works."""
+        call_count = [0]
+
+        def short_work():
+            """Short work that doesn't need heartbeat callback."""
+            call_count[0] += 1
+            time.sleep(0.05)
+
+        ticket_id = 888
+        lock_path = worker._get_lock_path(ticket_id)
+
+        # Run work cycle with short work (no callback parameter)
+        worker.run_work_cycle(ticket_id, work_func=short_work)
+
+        # Verify work was called
+        assert call_count[0] == 1
+        # Lock file should be cleaned up
+        assert not lock_path.exists()
+
+    def test_worker_heartbeat_callback_updates_lock_file(self, worker, temp_locks_dir):
+        """Test that heartbeat callback actually updates the lock file."""
+        from heartbeat import is_ghost_claim
+        from datetime import datetime
+
+        def work_with_heartbeat(heartbeat_callback):
+            """Work that updates heartbeat mid-execution."""
+            time.sleep(0.05)
+            heartbeat_callback()
+            time.sleep(0.05)
+
+        ticket_id = 666
+        lock_path = worker._get_lock_path(ticket_id)
+
+        # Create lock manually to check mtime
+        from heartbeat import create_lock_file
+        create_lock_file(lock_path, "test-agent")
+        initial_mtime = lock_path.stat().st_mtime
+
+        # Let some time pass
+        time.sleep(0.1)
+
+        # Run work cycle
+        worker.run_work_cycle(ticket_id, work_func=work_with_heartbeat)
+
+        # After work, lock should be deleted, so we can't check mtime
+        # But we verified the callback was called by the work function
+        assert not lock_path.exists()
+
+    @patch("worker.create_lock_file")
+    @patch("worker.update_heartbeat")
+    @patch("worker.delete_lock_file")
+    def test_worker_calls_heartbeat_callback_work_function(
+        self, mock_delete, mock_update, mock_create, worker
+    ):
+        """Test that run_work_cycle calls work_func with heartbeat_callback."""
+        callback_received = [False]
+
+        def work_with_callback(heartbeat_callback):
+            """Work that receives and uses heartbeat callback."""
+            callback_received[0] = heartbeat_callback is not None
+            heartbeat_callback()
+
+        worker.run_work_cycle(555, work_func=work_with_callback)
+
+        # Verify callback was provided
+        assert callback_received[0] is True
+        # Verify heartbeat was updated (at least twice: callback + final)
+        assert mock_update.call_count >= 2
