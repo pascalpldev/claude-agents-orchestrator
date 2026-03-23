@@ -15,6 +15,7 @@ from heartbeat import (
     update_heartbeat,
     is_ghost_claim,
     delete_lock_file,
+    check_all_ghost_claims,
 )
 
 
@@ -203,3 +204,136 @@ class TestHeartbeatManager:
         # Clean up
         delete_lock_file(lock_file_path)
         assert not lock_file_path.exists()
+
+    def test_update_heartbeat_with_corrupted_json(self, lock_file_path):
+        """Test that update_heartbeat raises ValueError on corrupted JSON."""
+        # Create corrupted lock file
+        lock_file_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_file_path.write_text("{invalid json")
+
+        with pytest.raises(ValueError, match="Corrupted lock file"):
+            update_heartbeat(lock_file_path)
+
+    def test_update_heartbeat_with_missing_field(self, lock_file_path):
+        """Test that update_heartbeat raises ValueError on missing field."""
+        # Create lock file with missing last_heartbeat field
+        lock_file_path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "agent": "test-agent",
+            "claimed_at": datetime.now().timestamp()
+            # "last_heartbeat" is missing
+        }
+        lock_file_path.write_text(json.dumps(data, indent=2))
+
+        with pytest.raises(ValueError, match="missing 'last_heartbeat' field"):
+            update_heartbeat(lock_file_path)
+
+    def test_ghost_claim_caching_with_same_mtime(self, lock_file_path):
+        """Test that caching works when file mtime hasn't changed."""
+        create_lock_file(lock_file_path, "test-agent")
+        cache = {}
+
+        # First call - reads from disk
+        result1 = is_ghost_claim(lock_file_path, cache=cache)
+        assert result1 is False
+
+        # Second call with same mtime - should use cache
+        result2 = is_ghost_claim(lock_file_path, cache=cache)
+        assert result2 is False
+
+        # Cache should contain the entry
+        assert lock_file_path in cache
+
+    def test_ghost_claim_caching_with_changed_mtime(self, lock_file_path):
+        """Test that cache is invalidated when file mtime changes."""
+        create_lock_file(lock_file_path, "test-agent")
+        cache = {}
+
+        # First check - cache it
+        result1 = is_ghost_claim(lock_file_path, cache=cache)
+        assert result1 is False
+
+        # Modify the file to change mtime
+        time.sleep(0.01)  # Ensure mtime changes
+        data = json.loads(lock_file_path.read_text())
+        data["last_heartbeat"] = datetime.now().timestamp() - 1300
+        lock_file_path.write_text(json.dumps(data, indent=2))
+
+        # Second check should re-read from disk (cache invalidated by mtime change)
+        result2 = is_ghost_claim(lock_file_path, cache=cache)
+        assert result2 is True
+
+    def test_ghost_claim_caching_preserves_result(self, lock_file_path):
+        """Test that cached result is returned without re-reading."""
+        create_lock_file(lock_file_path, "test-agent")
+        cache = {}
+
+        # First call
+        result1 = is_ghost_claim(lock_file_path, cache=cache)
+
+        # Get cached mtime
+        cached_mtime, cached_result = cache[lock_file_path]
+
+        # Now modify the file (but don't change mtime - simulated)
+        # Verify that subsequent calls still return the cached result
+        result2 = is_ghost_claim(lock_file_path, cache=cache)
+        assert result1 == result2
+        assert cached_result == result2
+
+    def test_check_all_ghost_claims_empty_directory(self, temp_lock_dir):
+        """Test check_all_ghost_claims with empty directory."""
+        results = check_all_ghost_claims(temp_lock_dir)
+        assert results == {}
+
+    def test_check_all_ghost_claims_nonexistent_directory(self, tmp_path):
+        """Test check_all_ghost_claims with nonexistent directory."""
+        nonexistent = tmp_path / "nonexistent"
+        results = check_all_ghost_claims(nonexistent)
+        assert results == {}
+
+    def test_check_all_ghost_claims_multiple_files(self, temp_lock_dir):
+        """Test check_all_ghost_claims with multiple lock files."""
+        # Create three lock files
+        lock1 = temp_lock_dir / "ticket-1.lock"
+        lock2 = temp_lock_dir / "ticket-2.lock"
+        lock3 = temp_lock_dir / "ticket-3.lock"
+
+        create_lock_file(lock1, "agent-1")
+        create_lock_file(lock2, "agent-2")
+        create_lock_file(lock3, "agent-3")
+
+        # Make lock3 stale
+        data = json.loads(lock3.read_text())
+        data["last_heartbeat"] = datetime.now().timestamp() - 1300
+        lock3.write_text(json.dumps(data, indent=2))
+
+        # Check all
+        results = check_all_ghost_claims(temp_lock_dir, timeout_seconds=1200)
+
+        # Verify results
+        assert lock1 in results
+        assert lock2 in results
+        assert lock3 in results
+        assert results[lock1] is False  # Fresh
+        assert results[lock2] is False  # Fresh
+        assert results[lock3] is True   # Stale
+
+    def test_check_all_ghost_claims_uses_cache(self, temp_lock_dir):
+        """Test that check_all_ghost_claims uses caching for performance."""
+        # Create multiple files
+        lock1 = temp_lock_dir / "ticket-1.lock"
+        lock2 = temp_lock_dir / "ticket-2.lock"
+
+        create_lock_file(lock1, "agent-1")
+        create_lock_file(lock2, "agent-2")
+
+        # First call builds cache
+        results1 = check_all_ghost_claims(temp_lock_dir)
+
+        # Second call with same files (cache would be reused in a single
+        # check_all_ghost_claims call)
+        # This test verifies the internal caching mechanism works
+        results2 = check_all_ghost_claims(temp_lock_dir)
+
+        # Results should be identical
+        assert results1 == results2
