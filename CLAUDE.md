@@ -223,6 +223,62 @@ Or use Railway/Fly.io cron for production.
 
 ---
 
+## Multi-Agent Worker Configuration
+
+For production-grade automation with high ticket throughput, use `/cao-worker` to run up to 20 concurrent agents.
+
+### Polling Interval (Required)
+
+**Minimum polling interval: 5 minutes (300 seconds)**
+
+**Rationale:**
+- 20 agents × 5-min interval = 240 label queries/hr
+- Well within GitHub's 5000 req/hr rate limit
+- Balances latency (max 5 min wait for ticket claim) vs API usage
+
+**Do not set below 5 minutes.** Lower values risk GitHub API exhaustion.
+
+### Configuration
+
+Set in your CLAUDE.md or environment:
+
+```yaml
+worker:
+  polling_interval_seconds: 300  # 5 minutes (required minimum)
+  max_agents: 10                 # safe; up to 20 with monitoring
+  ghost_timeout_seconds: 1200    # 20 minutes
+```
+
+### Usage
+
+```bash
+# Start 10 agents, 5-minute polling
+/cao-worker --agents 10
+
+# Start 20 agents, custom interval
+/cao-worker --agents 20 --interval 300
+
+# Start with custom ghost timeout
+/cao-worker --agents 5 --interval 300 --ghost-timeout 900
+```
+
+### When to Use
+
+- `/cao-process-tickets --loop` → light load, single agent, simple setup
+- `/cao-worker` → production, high throughput, multiple concurrent agents
+
+### Monitoring
+
+```bash
+# View worker logs
+/cao-show-logs --filter "worker"
+
+# Check for stuck tickets
+gh issue list --label "claimed-by-*" --state open
+```
+
+---
+
 ## Troubleshooting
 
 **"Ticket stuck in enriching"**
