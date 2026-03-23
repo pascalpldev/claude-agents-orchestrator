@@ -1,9 +1,24 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-agents-orchestrator",
+  "owner": {
+    "name": "pascalpldev"
+  },
+  "description": "Automated GitHub ticket management workflow for Claude Code — enrichment, development, testing, and deployment via issue labels and agents",
+  "homepage": "https://github.com/pascalpldev/claude-agents-orchestrator",
+  "repository": "https://github.com/pascalpldev/claude-agents-orchestrator",
+  "metadata": {
+    "version": "1.0.0"
+  },
   "plugins": [
     {
       "name": "claude-agents-orchestrator",
-      "description": "Automated GitHub ticket management workflow for Claude Code — enrichment, development, testing, and deployment via issue labels and agents"
+      "source": "./",
+      "description": "Automated GitHub ticket management workflow for Claude Code — enrichment, development, testing, and deployment via issue labels and agents",
+      "version": "1.0.0",
+      "author": {
+        "name": "pascalpldev"
+      },
+      "category": "development"
     }
   ]
 }
