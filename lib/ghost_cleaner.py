@@ -5,6 +5,9 @@ Detects ghost claims (dead/crashed agents) via heartbeat timeout
 and recovers tickets for re-processing.
 """
 
+import json
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 import subprocess
@@ -14,6 +17,7 @@ from github_notifier import (
     add_labels_with_retry,
     post_comment,
 )
+from logger import log_event
 
 
 def cleanup_ghost_claim(
@@ -66,6 +70,18 @@ def cleanup_ghost_claim(
         repo=repo,
         issue_number=issue_number,
         body="🔧 Ghost claim cleaned up: agent stalled. Ticket re-opened for development."
+    )
+
+    # Log ghost detection before deleting the lock file
+    lock_data = json.loads(lock_path.read_text()) if lock_path.exists() else {}
+    last_hb = lock_data.get("last_heartbeat", 0)
+    stale_agent = lock_data.get("agent", "unknown")
+    age_seconds = int(time.time() - last_hb) if last_hb else 0
+    run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_ghost_{issue_number}"
+    log_event(
+        run_id, "worker", issue_number, "ghost_detected", "warning",
+        f"ghost claim detected on ticket #{issue_number}",
+        {"stale_agent": stale_agent, "age_seconds": age_seconds},
     )
 
     # Delete lock file

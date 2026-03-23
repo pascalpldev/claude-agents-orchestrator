@@ -10,6 +10,7 @@ heartbeat_callback parameter and call it periodically to signal liveness.
 """
 
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -18,6 +19,7 @@ from heartbeat import (
     update_heartbeat,
     delete_lock_file,
 )
+from logger import log_event
 from schema_validator import validate_resume_schema
 from migration_tool_detector import (
     detect_migration_tool,
@@ -47,6 +49,7 @@ class Worker:
         heartbeat_interval: int = 300,
         ghost_timeout: int = 1200,
         project_root: Optional[Path] = None,
+        logger_func=None,
     ):
         """
         Initialize a Worker.
@@ -75,6 +78,7 @@ class Worker:
         self.heartbeat_interval = heartbeat_interval
         self.ghost_timeout = ghost_timeout
         self.last_heartbeat_time = time.time()
+        self._log_func = logger_func or log_event
 
         # Detect and validate migration tool
         project_root = project_root or Path.cwd()
@@ -126,6 +130,7 @@ class Worker:
             Any exception raised by work_func will be re-raised after cleanup.
         """
         lock_path = self._get_lock_path(ticket_id)
+        run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_worker_{ticket_id}"
 
         # Create lock at start
         create_lock_file(lock_path, self.agent_name)
@@ -137,6 +142,11 @@ class Worker:
                 def heartbeat_callback():
                     update_heartbeat(lock_path)
                     self.last_heartbeat_time = time.time()
+                    self._log_func(
+                        run_id, "worker", ticket_id, "heartbeat", "ok",
+                        f"heartbeat — ticket #{ticket_id}",
+                        {"agent": self.agent_name},
+                    )
 
                 # Try to call with heartbeat_callback first (for long-running work)
                 try:
