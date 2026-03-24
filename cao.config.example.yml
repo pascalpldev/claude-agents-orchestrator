@@ -19,5 +19,11 @@ deploy:
 # ── Agent behaviour ───────────────────────────────────────────────────────────
 # agents:
 #   require_ci_pass: true      # Block merge if GitHub Actions checks fail
-#   enrichment_model: sonnet   # Model for team-lead agent
+#   enrichment_model: sonnet   # Model for chief-builder agent
 #   dev_model: sonnet          # Model for dev agent
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+# testing:
+#   smoke_routes: ["/", "/health"]  # Routes curl'd after deploy (default: ["/"])
+#   smoke_timeout_s: 300            # Max wait for deploy bot comment (default: 300)
+#   coverage_threshold: 70          # Minimum coverage % on new code (default: 70)

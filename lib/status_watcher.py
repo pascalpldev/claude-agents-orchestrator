@@ -92,15 +92,15 @@ def _header(repo, interval, last_ts, session_count):
     repo_str = f"{dim(owner + '/')}{bold(white(name))}"
 
     count_str = (
-        f"  {tick('●')} {bold(str(session_count))} terminé(s) aujourd'hui"
+        f"  {tick('●')} {bold(str(session_count))} completed today"
         if session_count else ""
     )
 
     print(_thick_bar())
     print(f"  {bold(white('CAO Watch'))}  {repo_str}{count_str}")
     print(f"  {muted('⟳')} {muted(f'{interval}s')}  "
-          f"{muted('màj')} {yellow(last_ts)}  "
-          f"{muted('Ctrl+C pour quitter')}")
+          f"{muted('upd')} {yellow(last_ts)}  "
+          f"{muted('Ctrl+C to quit')}")
     print(_thick_bar())
 
 # ── Data fetchers ─────────────────────────────────────────────────────────────
@@ -258,12 +258,12 @@ STATE_STYLE = {
 
 # Phase prefix → color
 PHASE_COLOR = {
-    "Fabrication":    orange,
-    "Deployment":     pink,
-    "Enrichissement": cyan,
-    "Verification":   lime,
-    "Discovery":      blue,
-    "Conception":     purple,
+    "Fabrication":   orange,
+    "Deployment":    pink,
+    "Enrichment":    cyan,
+    "Verification":  lime,
+    "Discovery":     blue,
+    "Design":        purple,
 }
 
 def _phase_color(phase: str):
@@ -274,10 +274,10 @@ def _phase_color(phase: str):
 
 
 def _render_agents(agents):
-    print(f"\n{bg_section('  AGENTS ACTIFS  ')}")
+    print(f"\n{bg_section('  ACTIVE AGENTS  ')}")
     print(_bar())
     if not agents:
-        print(f"  {muted('(aucun agent en cours)')}")
+        print(f"  {muted('(no agents running)')}")
         return
 
     for a in agents:
@@ -289,23 +289,23 @@ def _render_agents(agents):
 
         ms_str = (
             f"{accent('#' + str(ms_n))} {muted('— ' + ms_title)}" if ms_title
-            else (accent(f"#{ms_n}") if ms_n else muted("démarrage"))
+            else (accent(f"#{ms_n}") if ms_n else muted("starting"))
         )
 
         if a["ghost"]:
             if a["ghost_type"] == "DEAD":
-                status_badge = f"  {danger('⚠  GHOST — heartbeat perdu (PID mort ?)')}"
+                status_badge = f"  {danger('⚠  GHOST — heartbeat lost (PID dead?)')}"
             else:
-                status_badge = f"  {danger(f'⚠  GHOST — aucune milestone depuis {a[\"ms_age_min\"]}min')}"
+                status_badge = f"  {danger(f'⚠  GHOST — no milestone for {a[\"ms_age_min\"]}min')}"
         else:
             status_badge = ""
 
-        # ── Line 1: ticket | agent | session→tâche | elapsed | pid
+        # ── Line 1: ticket | agent | session→task | elapsed | pid
         print(
             f"  {bold(yellow('#' + a['ticket']  + ' '))}"
             f"{bold(info(a['agent'][:20]  + ' ')):<28}"
             f"  {muted('session')} {gray(a['session_start'])}"
-            f"  {muted('→')}  {muted('tâche')} {gray(a['task_start'])}"
+            f"  {muted('→')}  {muted('task')} {gray(a['task_start'])}"
             f"  {_elapsed_color(mins, str(mins) + 'min')}"
             f"  {muted(pid_str)}"
             f"{status_badge}"
@@ -323,7 +323,7 @@ def _render_agents(agents):
             f"  {machine_str}"
             f"{muted('kill →')} "
             f"{dark_gray('touch .locks/kill-ticket-' + a['ticket'])}"
-            f"  {muted('(≤ 10min)')}"
+            f"  {muted('(within 10min)')}"
         )
         print()
 
@@ -333,7 +333,7 @@ def _render_tickets(tickets):
     waiting = [t for t in tickets if t["state"] in ("to-enrich", "enriched", "to-dev", "to-test")]
 
     if active:
-        print(f"\n{bg_section('  EN COURS  ')}")
+        print(f"\n{bg_section('  IN PROGRESS  ')}")
         print(_bar())
         for t in active:
             style = STATE_STYLE.get(t["state"], (white, "•", t["state"]))
@@ -345,7 +345,7 @@ def _render_tickets(tickets):
             )
 
     if waiting:
-        print(f"\n{bg_section('  EN ATTENTE  ')}")
+        print(f"\n{bg_section('  WAITING  ')}")
         print(_bar())
         for t in waiting:
             style = STATE_STYLE.get(t["state"], (gray, "•", t["state"]))
@@ -357,7 +357,7 @@ def _render_tickets(tickets):
             )
 
     if not active and not waiting:
-        print(f"\n  {muted('Aucun ticket actif.')}")
+        print(f"\n  {muted('No active tickets.')}")
 
 
 # Phase → color for logs
@@ -388,7 +388,7 @@ LOG_AGENT_COLOR = {
 def _render_logs(events):
     if not events:
         return
-    print(f"\n{bg_section('  ACTIVITÉ RÉCENTE  ')}")
+    print(f"\n{bg_section('  RECENT ACTIVITY  ')}")
     print(_bar())
     for e in events:
         ts     = (e.get("ts") or "")[11:19]
@@ -437,7 +437,7 @@ def watch(repo: str, interval: int, repo_root: Path):
         _render_logs(events)
 
         print(f"\n{_thick_bar()}")
-        print(f"  {muted('Prochaine màj dans')} {yellow(str(interval) + 's')}…")
+        print(f"  {muted('Next update in')} {yellow(str(interval) + 's')}…")
         sys.stdout.flush()
 
         time.sleep(interval)
@@ -465,17 +465,17 @@ def main():
         # Check for active agents and offer graceful kill
         agents = _get_lock_data(repo_root)
         if not agents:
-            print(f"\n{muted('Watch arrêté.')}")
+            print(f"\n{muted('Watch stopped.')}")
             sys.exit(0)
 
         print(f"\n\n{_thick_bar()}")
-        print(f"  {warn('⚠')}  {bold(white(str(len(agents)) + ' agent(s) toujours actif(s) :'))}")
+        print(f"  {warn('⚠')}  {bold(white(str(len(agents)) + ' agent(s) still active:'))}")
         for a in agents:
             print(f"    {yellow('#' + a['ticket'])}  {info(a['agent'])}  "
                   f"{gray(a['elapsed_min'])}min  {muted(a['phase'] or '—')}")
         print()
         try:
-            ans = input(f"  {white('Envoyer un kill gracieux à tous ? [o/N] ')}").strip().lower()
+            ans = input(f"  {white('Send graceful kill to all? [y/N] ')}").strip().lower()
         except (EOFError, KeyboardInterrupt):
             ans = "n"
 
@@ -483,12 +483,12 @@ def main():
             for a in agents:
                 sentinel = repo_root / ".locks" / f"kill-ticket-{a['ticket']}"
                 sentinel.touch()
-                print(f"  {tick('✓')}  Signal déposé → {yellow('#' + a['ticket'])}  "
-                      f"{muted('(arrêt dans ≤ 10min)')}")
-            stopped_msg = "Watch arrêté. Les agents s'arrêteront proprement."
+                print(f"  {tick('✓')}  Signal sent → {yellow('#' + a['ticket'])}  "
+                      f"{muted('(stopping within 10min)')}")
+            stopped_msg = "Watch stopped. Agents will shut down cleanly."
             print(f"\n  {muted(stopped_msg)}")
         else:
-            print(f"  {muted('Watch arrêté. Agents toujours en cours.')}")
+            print(f"  {muted('Watch stopped. Agents still running.')}")
         sys.exit(0)
 
 

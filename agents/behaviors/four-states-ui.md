@@ -9,27 +9,27 @@ used_by: [ux-expert, artistic-director]
 
 *Scott Hurff, Designing Products People Love (2015)*
 
-Tout composant UI doit être conçu pour les 4 états. Les états **empty** et **error** sont systématiquement sous-designés et causent le plus de frustration utilisateur.
+Every UI component must be designed for all 4 states. The **empty** and **error** states are systematically under-designed and cause the most user frustration.
 
-## Les 4 états
+## The 4 states
 
-| État | Description | Questions |
-|------|-------------|-----------|
-| **Empty** | Pas de données (premier usage, filtre à zéro, tout supprimé) | Qu'est-ce que l'utilisateur voit ? Y a-t-il un CTA ou une guidance ? |
-| **Loading** | Données en cours de chargement | Spinner, skeleton, ou UI optimiste ? Délai perçu acceptable ? |
-| **Error** | Quelque chose a échoué (réseau, validation, permission) | Message actionnable ? L'utilisateur peut-il réessayer ? Sait-il pourquoi ? |
-| **Ideal** | L'état normal, peuplé | Souvent le seul état designé — insuffisant seul. |
+| State | Description | Questions |
+|-------|-------------|-----------|
+| **Empty** | No data (first use, filter at zero, everything deleted) | What does the user see? Is there a CTA or guidance? |
+| **Loading** | Data is being fetched | Spinner, skeleton, or optimistic UI? Acceptable perceived delay? |
+| **Error** | Something failed (network, validation, permission) | Actionable message? Can the user retry? Do they know why? |
+| **Ideal** | The normal, populated state | Often the only designed state — insufficient on its own. |
 
 ## Checklist
 
-Pour chaque composant interactif dans le scope :
+For each interactive component in scope:
 
-- [ ] Empty state défini ?
-- [ ] Loading state défini ?
-- [ ] Error state défini (message actionnable) ?
-- [ ] Success/confirmation défini si action destructive ou asynchrone ?
-- [ ] Edge cases : strings très longues, zéro éléments, max éléments, réseau lent ?
+- [ ] Empty state defined?
+- [ ] Loading state defined?
+- [ ] Error state defined (actionable message)?
+- [ ] Success/confirmation defined if the action is destructive or asynchronous?
+- [ ] Edge cases: very long strings, zero items, max items, slow network?
 
 ## Output
 
-Liste des états manquants par composant + recommandation. Si tous les états sont couverts → silence.
+List of missing states per component + recommendation. If all states are covered → silence.

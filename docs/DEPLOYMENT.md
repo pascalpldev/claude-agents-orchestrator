@@ -86,7 +86,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/pascalpldev/claude-agents-or
 ```
 
 This creates:
-- GitHub labels (to-enrich, enriching, enriched, to-dev, dev-in-progress, to-test, deployed, godeploy)
+- GitHub labels (to-enrich, enriching, enriched, to-dev, dev-in-progress, to-test, deployed, godeploy, autonomous)
 - `dev` branch
 - `.githooks/pre-commit` (validates commits)
 - `cao.config.yml` (deployment platform config)
@@ -161,32 +161,48 @@ gh issue create \
 In Claude Code, run:
 
 ```
-/cao-process-tickets team-lead
+/cao-process-tickets chief-builder
 ```
 
 **Expected behavior:**
 1. Detects ticket with `to-enrich` label
 2. Changes label to `enriching` (lock)
-3. Launches team-lead agent (Sonnet model)
-4. Agent reads ticket, writes enrichment plan as comment
-5. Changes label to `enriched`
-6. Skill completes: `✅ Processed: #N`
+3. Launches chief-builder agent (Sonnet model)
+4. Agent reads ticket, runs deliberation (up to 2 cycles × 3 waves)
+5. Posts enrichment plan as GitHub comment with visible deliberation section
+6. Changes label to `enriched` (or auto-promotes to `to-dev` if scope is S/M and direction is clear)
+7. Skill completes: `✅ Processed: #N`
+
+**What the Chief Builder does internally:**
+- Detects intent from ticket text (feature, bug, exploratory, risk-only, directive, or propose)
+- Wave 1: primary persona (most relevant to ticket type) forms initial position
+- Wave 2: other personas react to primary's position via Challenge/Amplify filter
+- Wave 3: re-deliberation if a challenge modified the direction
+- If unresolvable ambiguity: posts clarification comment, resets to `to-enrich`, assigns ticket to you
+- Deliberation and any conflicts are visible in the output
 
 **If it fails:**
 - Check GitHub token is set: `echo $GITHUB_TOKEN` (should not be empty)
 - Read agent logs: `/cao-show-logs --errors`
 - Check CLAUDE.md syntax and critical files exist
 
+**Clarification loop:**
+If the chief-builder posts a clarification comment (ambiguity it can't resolve internally), it resets the label to `to-enrich` and assigns the ticket to you. Answer its question in a comment, then re-run `/cao-process-tickets`. The loop continues until the agent can commit to a direction.
+
 ### Step 5 — Validate Enrichment & Move to Dev
 
-On GitHub, review the enrichment plan comment:
-- Is it clear and actionable?
-- Does it match your vision?
-- Are there gaps or issues?
+On GitHub, review the enrichment plan comment. The comment starts with a header identifying the lead persona and detected intent:
+```
+> **[Tech Lead]** · Detected intent: ticket of type `bug` targeting auth module stability.
+```
+
+Then shows the deliberation section (which personas challenged, which amplified), followed by the plan.
 
 **If OK:** Change label from `enriched` → `to-dev`
 
-**If not OK:** Add a comment with feedback and change label back to `to-enrich`. Agent will re-read feedback and revise.
+**If not OK:** Add a comment with feedback and change label back to `to-enrich`. The agent re-reads your feedback, re-deliberates with it as a new constraint, and updates the plan.
+
+**If auto-promoted:** For tickets with a single clear direction, no breaking changes, and S/M complexity, the chief-builder skips `enriched` and promotes directly to `to-dev`. Use the `autonomous` label to bypass all human gates.
 
 ### Step 6 — Test Dev Phase
 
@@ -303,7 +319,7 @@ Each run produces a JSONL file with entries like:
   "timestamp": "2026-03-23T14:30:15Z",
   "run_id": "20260323_143015_tl_5",
   "ticket": 5,
-  "agent": "team-lead",
+  "agent": "chief-builder",
   "phase": "start",
   "status": "started",
   "message": "ticket #5 — Feature: User auth"
@@ -314,8 +330,8 @@ Each run produces a JSONL file with entries like:
 - `timestamp` — ISO 8601 time
 - `run_id` — unique identifier for each agent run
 - `ticket` — GitHub issue number
-- `agent` — "team-lead" or "dev"
-- `phase` — lifecycle phase (start, context_loaded, analysis_complete, push, pr_created, end, etc.)
+- `agent` — "chief-builder" or "dev"
+- `phase` — lifecycle phase (start, context_loaded, deliberation_wave1, deliberation_wave2, deliberation_wave3, clarification, plan_posted, end, etc.)
 - `status` — "started", "ok", "error", "success"
 - `message` — human-readable detail or error message
 
@@ -385,7 +401,7 @@ Instead of manual runs, set up continuous polling:
 /cao-process-tickets --loop --interval 10
 
 # Or, role-specific:
-/cao-process-tickets team-lead --loop --interval 10
+/cao-process-tickets chief-builder --loop --interval 10
 /cao-process-tickets dev --loop --interval 10
 ```
 
@@ -394,14 +410,14 @@ This is ideal for 24/7 automation with Railway crons or scheduled Claude session
 ### Parallel Agents
 
 CAO is designed for safe parallel execution:
-- **Enrichment agents** (team-lead) work on different `to-enrich` tickets concurrently
+- **Enrichment agents** (chief-builder) work on different `to-enrich` tickets concurrently
 - **Dev agents** (dev) work on different `to-dev` tickets concurrently
 - **Locked states** (`enriching`, `dev-in-progress`) prevent race conditions
 
 **Safe to run in parallel:**
 ```bash
 # In one window:
-/cao-process-tickets team-lead --loop --interval 5
+/cao-process-tickets chief-builder --loop --interval 5
 
 # In another window (same or different session):
 /cao-process-tickets dev --loop --interval 5
@@ -447,8 +463,10 @@ Or override in `/cao-process-tickets` skill before launching agents.
 - **Haiku**: $0.80 / 1M input, $4 / 1M output (fast, cost-effective for coding)
 
 Typical workflow costs:
-- Enrichment (team-lead): 20–50 KB output → ~$0.30–0.75 per ticket
+- Enrichment (chief-builder, with deliberation): 30–80 KB output → ~$0.45–1.20 per ticket
 - Development (dev): 50–200 KB output → ~$0.75–3.00 per ticket
+
+**Context optimization:** The chief-builder is designed to minimize file reads. Behaviors are inlined in the agent prompt, and orchestration.md is not loaded at runtime. This keeps context usage low even with the multi-persona deliberation model.
 
 ---
 
@@ -675,8 +693,11 @@ Keep these commands handy for day-to-day operations:
 # Last 20 agent runs
 /cao-show-logs --last 20
 
-# Team-lead agent only
-/cao-show-logs --agent team-lead
+# Chief-builder agent only
+/cao-show-logs --agent chief-builder
+
+# Instant snapshot (active tickets, running agents, last logs)
+/cao-status
 ```
 
 ### GitHub State
@@ -721,16 +742,22 @@ git branch -r | grep feat/
 /cao-process-tickets --loop
 
 # Stop looping
-/cancel-cao
+/cao-cancel-loop
 
 # Enrich only (one-time)
-/cao-process-tickets team-lead
+/cao-process-tickets chief-builder
 
 # Dev only (one-time)
 /cao-process-tickets dev
 
 # Dev with longer interval
 /cao-process-tickets dev --loop --interval 30
+
+# Monitor a running agent live
+/cao-watch
+
+# Force graceful stop of a running agent
+/cao-kill <ticket-N>
 ```
 
 ---
@@ -740,11 +767,14 @@ git branch -r | grep feat/
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | "No logs found" | First run, or project not configured | Run `/cao-process-tickets` once to generate logs |
-| Ticket stuck in `enriching` | Agent crashed or timed out | Reset label: `gh issue edit --remove-label enriching --add-label to-enrich` |
+| Ticket stuck in `enriching` | Agent crashed or timed out | Reset label: `gh issue edit --remove-label enriching --add-label to-enrich` or use `/cao-kill <ticket-N>` |
 | Ticket stuck in `dev-in-progress` | PR merge failed or agent error | Check PR status; reset label and add feedback comment |
+| Chief-builder keeps clarifying | Ambiguity in ticket the agent can't resolve internally | Answer the clarification question in a comment; or add `autonomous` label to skip gates |
+| Chief-builder auto-promoted to `to-dev` | S/M scope with clear direction — expected behavior | Review enrichment plan; reset to `to-enrich` if you want to review first |
+| Enrichment plan misses the intent | Intent detection picked the wrong type | Add explicit framing to ticket: "explore options", "bug:", "propose without challenging", etc. |
 | PR won't merge (CI failing) | Code doesn't pass tests | Add comment with fix guidance; reset to `to-dev` |
 | High error rate (> 10%) | API issues or bad CLAUDE.md | Check `/cao-show-logs --errors`; review CLAUDE.md syntax |
-| Slow enrichment (> 5 min) | Context files too large | Trim CLAUDE.md or move non-critical files outside of it |
+| Slow enrichment (> 5 min) | Context files too large or complex deliberation | Trim CLAUDE.md; check if clarification loop is running |
 | API rate limit hit | Too many concurrent agents | Increase `--interval` or reduce number of parallel runs |
 | GitHub token expired | Auth failure | Update `GITHUB_TOKEN` environment variable or `gh auth login` |
 
@@ -756,7 +786,7 @@ Once Phase 3 is stable:
 
 1. **Automate fully**: Deploy CAO as a scheduled Railway/Fly.io cron job
 2. **Monitor continuously**: Set up alerts in your observability platform (Datadog, NewRelic, etc.)
-3. **Iterate on prompts**: Fine-tune team-lead and dev agent instructions based on feedback
+3. **Iterate on prompts**: Fine-tune chief-builder and dev agent instructions based on feedback
 4. **Expand scope**: Use CAO for maintenance tasks, dependency updates, and security patches
 
 ---
@@ -770,7 +800,7 @@ A: Yes, safely. Different agents can run on different state labels (enriching, d
 A: Set `platform: none` in `cao.config.yml`. Agents will merge to `dev` but skip platform-specific deployment steps.
 
 **Q: Can I change models or adjust agent behavior?**
-A: Yes. Edit `cao.config.yml` to specify models; edit agent prompt files (`agents/team-lead.md`, `agents/dev.md`) to tweak behavior.
+A: Yes. Edit `cao.config.yml` to specify models; edit agent prompt files (`agents/positions/chief-builder/agent.md`, `agents/positions/chief-builder/personas/dev.md`) to tweak behavior. Shared behaviors (challenge-amplify, product-baseline, discoverability, etc.) are in `agents/behaviors/`.
 
 **Q: How do I scale beyond 20 agents?**
 A: Use Railway/Fly.io scheduled tasks to spawn multiple parallel `/cao-process-tickets` runs in different Claude Code sessions. Monitor API quotas closely.
@@ -780,6 +810,38 @@ A: Add a comment on the ticket and keep it in the current state. Human reviewer 
 
 ---
 
-**Last Updated:** 2026-03-23
-**CAO Version:** 1.0+
+---
+
+## Chief Builder — Intent Reference
+
+The chief-builder detects intent from the ticket body and adapts its behavior. Understanding this helps you write better tickets.
+
+| Intent | Trigger words/patterns | Output |
+|--------|------------------------|--------|
+| `feature` *(default)* | Standard request | Full implementation plan with deliberation |
+| `exploratory` | "propose", "ideas", "what do you think about" | 2–3 options with trade-offs |
+| `risk-only` | "what is the risk", "risks of" | Risk table only, no plan |
+| `bug` | "bug", "no longer works", "broken" | Root cause verification → fix plan or explanation |
+| `directive` | "integrate X", "add Y" (clear imperative) | Direct plan, no scope challenge |
+| `propose` | "propose solutions", "don't challenge" | Options without questioning the why |
+
+**Output header (in all GitHub comments):**
+```
+> **[Tech Lead]** · Detected intent: ticket of type `feature` targeting auth endpoint security.
+```
+
+**Deliberation visibility (in all outputs):**
+```
+---
+**Internal deliberation**
+- Product Builder → challenge (resolvable): ...
+- UX Expert → amplify: ...
+→ Direction selected: ...
+---
+```
+
+---
+
+**Last Updated:** 2026-03-24
+**CAO Version:** 1.1+
 **Maintained by:** Claude Agents Orchestrator Team

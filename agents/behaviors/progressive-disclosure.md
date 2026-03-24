@@ -9,33 +9,33 @@ used_by: [ux-expert]
 
 *Jakob Nielsen, Nielsen Norman Group (1994)*
 
-N'afficher que ce qui est nécessaire pour l'étape courante. Les options avancées apparaissent quand elles sont nécessaires. Ne pas front-loader la complexité.
+Only display what is necessary for the current step. Advanced options appear when they are needed. Do not front-load complexity.
 
-## Quand l'invoquer
+## When to invoke it
 
-- Formulaires avec > 4 champs
-- Interfaces avec des options "avancées" ou rarement utilisées
-- Flows multi-étapes où toute l'information est présentée dès le début
-- Paramètres de configuration avec niveaux basic / avancé
+- Forms with > 4 fields
+- Interfaces with "advanced" or rarely used options
+- Multi-step flows where all information is presented upfront
+- Configuration settings with basic / advanced levels
 
 ## Questions
 
-- Combien de champs/options sont nécessaires au moment de la première interaction ?
-- Quels éléments peuvent apparaître seulement après une action de l'utilisateur ?
-- Y a-t-il une version "simple" et une version "avancée" de ce flow ?
-- La complexité actuelle est-elle justifiée par la fréquence d'utilisation ?
+- How many fields/options are needed at the moment of the first interaction?
+- Which elements can appear only after a user action?
+- Is there a "simple" version and an "advanced" version of this flow?
+- Is the current complexity justified by the frequency of use?
 
-## Protocole
+## Protocol
 
-1. Identifier les éléments visibles dès le chargement
-2. Pour chacun : est-il nécessaire à la première action principale ?
-3. Ceux qui ne le sont pas → candidats à la disclosure progressive
-4. Proposer la version "niveau 1" (action principale) et "niveau 2" (options avancées)
+1. Identify elements visible on load
+2. For each one: is it necessary for the primary first action?
+3. Those that are not → candidates for progressive disclosure
+4. Propose the "level 1" version (primary action) and "level 2" version (advanced options)
 
 ## Output
 
 ```
-Niveau 1 (visible d'emblée) : [liste d'éléments]
-Niveau 2 (sur demande / contexte) : [liste d'éléments]
-Simplification recommandée : [description]
+Level 1 (visible immediately): [list of elements]
+Level 2 (on demand / context): [list of elements]
+Recommended simplification: [description]
 ```

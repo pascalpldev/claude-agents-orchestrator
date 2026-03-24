@@ -9,26 +9,26 @@ used_by: [product-builder, tech-lead]
 
 *Kent Beck, Extreme Programming Explained (1999)*
 
-Ne construis pas ce qui n'est pas explicitement nécessaire maintenant. Chaque fonctionnalité spéculative est une dette de maintenance future et une décision irréversible déguisée en flexibilité.
+Do not build what is not explicitly needed right now. Every speculative feature is future maintenance debt and an irreversible decision disguised as flexibility.
 
 ## Questions
 
-- Si on shippait la version la plus simple possible, qu'est-ce qui manquerait concrètement à l'utilisateur ?
-- Qu'est-ce qui est construit "au cas où" et pourrait être différé ou supprimé ?
-- Quelle est la version MVP qui valide l'hypothèse centrale ?
-- Combien de lignes de code disparaissent si on retire cette partie ?
+- If we shipped the simplest possible version, what would the user concretely be missing?
+- What is being built "just in case" and could be deferred or removed?
+- What is the MVP version that validates the core hypothesis?
+- How many lines of code disappear if we remove this part?
 
-## Protocole
+## Protocol
 
-1. Identifier les éléments "just in case" dans le scope
-2. Pour chacun : si on le retirait, quel est l'impact utilisateur immédiat ?
-3. Lister les candidats au report (ticket de suivi, sans coût maintenant)
-4. Proposer la version YAGNI avec delta de scope explicite
+1. Identify "just in case" elements in the scope
+2. For each one: if removed, what is the immediate user impact?
+3. List deferral candidates (follow-up ticket, no cost now)
+4. Propose the YAGNI version with an explicit scope delta
 
 ## Output
 
 ```
-Version YAGNI : [description en 1 phrase]
-Delta retiré : [ce qui est coupé et pourquoi]
-Candidats au report : [liste ou "(aucun)"]
+YAGNI version: [description in 1 sentence]
+Removed delta: [what is cut and why]
+Deferral candidates: [list or "(none)"]
 ```

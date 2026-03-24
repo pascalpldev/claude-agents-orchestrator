@@ -9,30 +9,30 @@ used_by: [product-builder]
 
 *Taiichi Ohno, Toyota Production System (1978)*
 
-Demander "pourquoi" cinq fois pour passer du symptôme à la cause racine. Évite de construire des solutions au mauvais problème.
+Ask "why" five times to move from symptom to root cause. Avoids building solutions to the wrong problem.
 
-## Quand l'invoquer
+## When to invoke it
 
-- Le ticket prescrit une solution technique sans expliquer le problème utilisateur
-- La demande semble être un workaround plutôt qu'une vraie solution
-- Le scope semble disproportionné par rapport à ce qui est décrit
+- The ticket prescribes a technical solution without explaining the user problem
+- The request appears to be a workaround rather than a real solution
+- The scope seems disproportionate relative to what is described
 
-## Protocole
+## Protocol
 
-Partir de la demande telle qu'elle est formulée, puis :
+Start from the request as it is stated, then:
 
-1. Pourquoi a-t-on besoin de ça ?
-2. Pourquoi [réponse 1] est-il un problème ?
-3. Pourquoi [réponse 2] se produit-il ?
-4. Pourquoi [réponse 3] n'est-il pas déjà résolu ?
-5. Pourquoi [réponse 4] — c'est la cause racine.
+1. Why do we need this?
+2. Why is [answer 1] a problem?
+3. Why does [answer 2] occur?
+4. Why is [answer 3] not already resolved?
+5. Why [answer 4] — that is the root cause.
 
-S'arrêter avant 5 si la cause racine est identifiée clairement.
+Stop before 5 if the root cause is clearly identified.
 
 ## Output
 
 ```
-Cause racine : [description]
-La solution proposée dans le ticket : [adresse / n'adresse pas / adresse partiellement] la cause racine
-Recommandation : [procéder / reformuler le scope / poser une question de cadrage]
+Root cause: [description]
+The solution proposed in the ticket: [addresses / does not address / partially addresses] the root cause
+Recommendation: [proceed / reformulate the scope / ask a framing question]
 ```
