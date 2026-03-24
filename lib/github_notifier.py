@@ -115,6 +115,61 @@ def add_labels_with_retry(
             time.sleep(retry_delay)
 
 
+def post_comment_with_id(
+    repo: str,
+    issue_number: int,
+    body: str,
+) -> int:
+    """
+    Post comment and return its ID.
+
+    Uses GitHub REST API directly to get comment ID on creation.
+
+    Args:
+        repo: Repository in format "owner/repo".
+        issue_number: Issue number to comment on.
+        body: Comment body text.
+
+    Returns:
+        GitHub comment ID (integer).
+
+    Raises:
+        Exception: If comment posting fails.
+    """
+    owner, repo_name = repo.split("/", 1)
+    output = run_gh_cli([
+        "api", f"repos/{owner}/{repo_name}/issues/{issue_number}/comments",
+        "-X", "POST",
+        "-f", f"body={body}",
+        "--jq=.id",
+    ])
+    return int(output.strip())
+
+
+def edit_comment(
+    repo: str,
+    comment_id: int,
+    body: str,
+) -> None:
+    """
+    Edit an existing GitHub comment by ID.
+
+    Args:
+        repo: Repository in format "owner/repo".
+        comment_id: GitHub comment ID to edit.
+        body: New comment body text.
+
+    Raises:
+        Exception: If edit fails.
+    """
+    owner, repo_name = repo.split("/", 1)
+    run_gh_cli([
+        "api", f"repos/{owner}/{repo_name}/issues/comments/{comment_id}",
+        "-X", "PATCH",
+        "-f", f"body={body}",
+    ])
+
+
 def post_comment(
     repo: str,
     issue_number: int,

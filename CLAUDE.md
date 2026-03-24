@@ -27,10 +27,11 @@ gh issue create --title "Feature: ..." --label "to-enrich"
 
 ### Skills (Global — use in any Claude Code session)
 
-- **`/cao-hello-team-lead`** — Daily standup, load project state
+- **`/cao-hello-chief-builder`** — Daily standup, load project state
 - **`/cao-get-ticket #N`** — Load a GitHub ticket for discussion
 - **`/cao-process-tickets`** — Poll tickets and process them (enrichment → dev → test → merge)
-- **`/cao-show-logs`** — Read structured logs from agent runs
+- **`/cao-status`** — Snapshot instantané : tickets actifs, agents en cours, derniers logs
+- **`/cao-show-logs`** — Historique détaillé des runs d'agents
 
 ### Templates (Per-project)
 
@@ -67,13 +68,14 @@ gh issue create --title "Feature: ..." --label "to-enrich"
 | Label | Meaning |
 |-------|---------|
 | `to-enrich` | Ready for enrichment (planning) |
-| `enriching` | Team-lead agent running (locked) |
+| `enriching` | Chief-builder running (locked) |
 | `enriched` | Plan proposed, waiting for your validation |
 | `to-dev` | Validated, ready to implement |
-| `dev-in-progress` | Dev agent running (locked) |
+| `dev-in-progress` | Dev persona running (locked) |
 | `to-test` | Code ready, preview URL posted, ready for testing |
 | `deployed` | Merged to dev branch |
-| `godeploy` | Tag: signal production deployment |
+| `godeploy` | Signal: merge and deploy to production |
+| `autonomous` | Skip human gate — chief-builder goes Phase 1→6 without stopping |
 
 ### Who Does What
 
@@ -221,59 +223,27 @@ Or use Railway/Fly.io cron for production.
 
 ---
 
-## Multi-Agent Worker Configuration
+## Architecture — 1 session = 1 agent
 
-For production-grade automation with high ticket throughput, use `/cao-worker` to run up to 20 concurrent agents.
+Chaque invocation de `/cao-process-tickets` est une session Claude indépendante avec son propre contexte. Il n'y a pas d'accumulation de contexte entre les tickets.
 
-### Polling Interval (Required)
-
-**Minimum polling interval: 5 minutes (300 seconds)**
-
-**Rationale:**
-- 20 agents × 5-min interval = 240 label queries/hr
-- Well within GitHub's 5000 req/hr rate limit
-- Balances latency (max 5 min wait for ticket claim) vs API usage
-
-**Do not set below 5 minutes.** Lower values risk GitHub API exhaustion.
-
-### Configuration
-
-Set in your CLAUDE.md or environment:
-
-```yaml
-worker:
-  polling_interval_seconds: 300  # 5 minutes (required minimum)
-  max_agents: 10                 # safe; up to 20 with monitoring
-  ghost_timeout_seconds: 1200    # 20 minutes
+```
+/cao-process-tickets --loop
+  → session 1 : traite ticket #5 → CronCreate → exit
+  → session 2 : traite ticket #3 → CronCreate → exit  (contexte vide)
+  → session 3 : rien → sleep 5min → exit
 ```
 
-### Usage
+L'état du workflow vit entièrement dans GitHub (labels, commentaires, branches git) — pas dans la mémoire de session. Une session qui crashe ne laisse aucune donnée perdue.
+
+### Observabilité
 
 ```bash
-# Start 10 agents, 5-minute polling
-/cao-worker --agents 10
-
-# Start 20 agents, custom interval
-/cao-worker --agents 20 --interval 300
-
-# Start with custom ghost timeout
-/cao-worker --agents 5 --interval 300 --ghost-timeout 900
+/cao-status          # snapshot instantané : tickets + agents actifs + derniers logs
+/cao-show-logs       # historique complet des runs
 ```
 
-### When to Use
-
-- `/cao-process-tickets --loop` → light load, single agent, simple setup
-- `/cao-worker` → production, high throughput, multiple concurrent agents
-
-### Monitoring
-
-```bash
-# View worker logs
-/cao-show-logs --filter "worker"
-
-# Check for stuck tickets
-gh issue list --label "claimed-by-*" --state open
-```
+Les milestones de progression sont postés directement en commentaire GitHub sur chaque ticket — visibles en temps réel sans outil supplémentaire.
 
 ---
 
