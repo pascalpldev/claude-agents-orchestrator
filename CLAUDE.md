@@ -328,6 +328,18 @@ See the kit's documentation for how to use the automation.
 
 ---
 
+## Versioning
+
+This project uses **semantic versioning** (`vMAJOR.MINOR.PATCH`). A GitHub release must be created for every merge to `main` that introduces new features or breaking changes.
+
+| Change type | Version bump |
+|-------------|-------------|
+| Breaking change (removed/renamed agent, skill, label) | MAJOR |
+| New feature (new behavior, skill, label, agent capability) | MINOR |
+| Bug fix, docs, refactor with no behavior change | PATCH |
+
+**After every merge to `main`**: create a release with `gh release create vX.Y.Z --title "..." --notes "..."`. Include breaking changes, new features, and fixes in the notes.
+
 ## Language
 
 **All code, comments, agent behaviors, skill files, commit messages, PR descriptions, and issue content must be written in English.** This applies to every file in the repository — no exceptions.
