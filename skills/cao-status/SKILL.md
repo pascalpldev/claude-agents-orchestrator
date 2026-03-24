@@ -1,20 +1,20 @@
 ---
 name: cao-status
 description: |
-  Snapshot instantané de l'état du projet — tickets actifs, agents en cours, derniers logs.
+  Instant project state snapshot — active tickets, running agents, latest logs.
 
-  Usage :
-  - /cao-status            → vue complète
-  - /cao-status --tickets  → tickets GitHub uniquement (labels)
-  - /cao-status --agents   → agents actifs (.lock files) uniquement
-  - /cao-status --logs     → derniers événements de log
+  Usage:
+  - /cao-status            → full view
+  - /cao-status --tickets  → GitHub tickets only (labels)
+  - /cao-status --agents   → active agents (.lock files) only
+  - /cao-status --logs     → latest log events
 argument-hint: "[--tickets|--agents|--logs]"
 allowed-tools: [Read, Glob, Grep, Bash]
 ---
 
-# /cao-status — Snapshot d'état
+# /cao-status — State snapshot
 
-Donne une vue instantanée de ce qui se passe : tickets en cours, agents actifs, dernières activités.
+Gives an instant view of what is happening: tickets in progress, active agents, latest activity.
 
 ## Parse arguments
 
@@ -35,9 +35,9 @@ REPO=$(echo "$REMOTE" | sed 's|.*github\.com[:/]||' | cut -d'/' -f2 | sed 's|\.g
 REPO_ROOT=$(git rev-parse --show-toplevel)
 ```
 
-## Section 1 — Tickets actifs (si MODE = all | tickets)
+## Section 1 — Active tickets (if MODE = all | tickets)
 
-Récupérer tous les tickets ouverts avec un label de workflow actif :
+Fetch all open tickets with an active workflow label:
 
 ```bash
 gh issue list --repo "$OWNER/$REPO" --state open \
@@ -45,39 +45,39 @@ gh issue list --repo "$OWNER/$REPO" --state open \
   --limit 50
 ```
 
-Filtrer et afficher par état :
+Filter and display by state:
 
 ```
-## Tickets en cours
+## Tickets in progress
 
-| # | Titre | État | Assigné | Mis à jour |
-|---|-------|------|---------|------------|
-| #N | ... | enriching | — | il y a 3min |
-| #N | ... | dev-in-progress | @user | il y a 12min |
+| # | Title | State | Assigned | Updated |
+|---|-------|-------|----------|---------|
+| #N | ... | enriching | — | 3min ago |
+| #N | ... | dev-in-progress | @user | 12min ago |
 
-## En attente
+## Waiting
 
-| # | Titre | État |
-|---|-------|------|
+| # | Title | State |
+|---|-------|-------|
 | #N | ... | to-enrich |
 | #N | ... | to-dev |
 | #N | ... | to-test |
 
-## Récemment terminés (deployed)
-[3 derniers tickets deployed, avec date]
+## Recently completed (deployed)
+[last 3 deployed tickets, with date]
 ```
 
-Tickets sans label de workflow → ignorer.
+Tickets without a workflow label → ignore.
 
-## Section 2 — Agents actifs (si MODE = all | agents)
+## Section 2 — Active agents (if MODE = all | agents)
 
-Lire les `.lock` files dans `.locks/` :
+Read `.lock` files in `.locks/`:
 
 ```bash
-ls "$REPO_ROOT/.locks/"*.lock 2>/dev/null || echo "(aucun agent actif)"
+ls "$REPO_ROOT/.locks/"*.lock 2>/dev/null || echo "(no active agents)"
 ```
 
-Pour chaque `.lock` file trouvé, afficher :
+For each `.lock` file found, display:
 
 ```bash
 python3 - <<'EOF'
@@ -90,9 +90,9 @@ now = time.time()
 
 locks = list(locks_dir.glob('*.lock')) if locks_dir.exists() else []
 if not locks:
-    print("Aucun agent actif (.locks/ vide ou absent)")
+    print("No active agents (.locks/ empty or missing)")
 else:
-    print(f"{'Ticket':<10} {'Agent':<20} {'Depuis':<12} {'Phase':<25} {'Milestones':<10} {'État'}")
+    print(f"{'Ticket':<10} {'Agent':<20} {'Since':<12} {'Phase':<25} {'Milestones':<10} {'State'}")
     print("-" * 90)
     for lock_file in sorted(locks):
         try:
@@ -103,25 +103,25 @@ else:
             phase = d.get('current_phase', '—')
             milestones = d.get('milestone_count', 0)
             # Ghost if heartbeat > 20min
-            state = '⚠️  GHOST?' if hb_age > 1200 else '✅ actif'
+            state = '⚠️  GHOST?' if hb_age > 1200 else '✅ active'
             ticket = lock_file.stem.replace('ticket-', '#')
             agent = d.get('agent', '?')[:18]
             print(f"{ticket:<10} {agent:<20} {mins:>3}min{'':<7} {phase:<25} {milestones:<10} {state}")
         except Exception as e:
-            print(f"{lock_file.name}: erreur lecture ({e})")
+            print(f"{lock_file.name}: read error ({e})")
 EOF
 ```
 
-## Section 3 — Derniers logs (si MODE = all | logs)
+## Section 3 — Latest logs (if MODE = all | logs)
 
 ```bash
 LOG_DIR="$HOME/.claude/projects/logs/${OWNER}-${REPO}"
 LOG_FILE=$(ls "$LOG_DIR"/*.jsonl 2>/dev/null | sort | tail -1)
 
 if [ -z "$LOG_FILE" ]; then
-  echo "Aucun log trouvé dans $LOG_DIR"
+  echo "No logs found in $LOG_DIR"
 else
-  # Derniers 20 événements, formatés
+  # Last 20 events, formatted
   python3 - <<'PYEOF'
 import json, sys
 from pathlib import Path
@@ -129,7 +129,7 @@ from pathlib import Path
 log_file = Path(sys.argv[1])
 lines = log_file.read_text().strip().split('\n')[-20:]
 
-print(f"{'Heure':<10} {'Agent':<14} {'Ticket':<8} {'Phase':<22} {'Status':<8} Message")
+print(f"{'Time':<10} {'Agent':<14} {'Ticket':<8} {'Phase':<22} {'Status':<8} Message")
 print("-" * 85)
 for line in lines:
     try:
@@ -149,7 +149,7 @@ PYEOF
 fi
 ```
 
-## Output final
+## Final output
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -159,11 +159,11 @@ fi
 
 [Section 1 — Tickets]
 
-[Section 2 — Agents actifs]
+[Section 2 — Active agents]
 
-[Section 3 — Derniers logs]
+[Section 3 — Latest logs]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Si toutes les sections sont vides : afficher `✅ Rien en cours — projet au repos.`
+If all sections are empty: display `✅ Nothing in progress — project at rest.`

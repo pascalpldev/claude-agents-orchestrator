@@ -42,9 +42,9 @@ If `--loop` is set: announce it at the start.
 🔄 Loop mode active — role: {ROLE}, interval: {INTERVAL}min
 ```
 
-## Phase 0 — Ghost buster (si --ghost-buster)
+## Phase 0 — Ghost buster (if --ghost-buster)
 
-Si GHOST_BUSTER = true, exécuter **avant tout traitement de ticket** :
+If GHOST_BUSTER = true, execute **before any ticket processing**:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -53,10 +53,10 @@ python3 "${REPO_ROOT}/lib/ghost_buster.py" \
   --locks-dir "${REPO_ROOT}/.locks"
 ```
 
-Traite tous les ghosts détectés (local + remote) séquentiellement, affiche un résumé,
-puis continue vers le traitement normal des tickets.
+Processes all detected ghosts (local + remote) sequentially, displays a summary,
+then continues to normal ticket processing.
 
-Si aucun ghost trouvé → affiche `👻 Ghost buster — aucun ghost détecté.` et continue.
+If no ghost found → displays `👻 Ghost buster — no ghost detected.` and continues.
 
 ## Context detection
 
@@ -71,9 +71,9 @@ Run only the workflows matching ROLE:
 
 | ROLE | Workflows to run |
 |------|-----------------|
-| `all` | 1 + 2 + 3 |
+| `all` | 1 + 2 + 3 + 4 |
 | `chief-builder` | 1 only |
-| `dev` | 2 + 3 |
+| `dev` | 2 + 3 + 4 |
 
 ### 1. Enrichment workflow (chief-builder)
 
@@ -122,6 +122,55 @@ b. Fixes, commits, changes label → to-test
 
 Skip if ROLE = "chief-builder".
 
+### 4. Copilot review workflow (dev)
+
+Skip if ROLE = "chief-builder".
+
+**Detects**: `copilot-review-pending` label + no assignee
+
+```bash
+# Find the PR for this ticket
+PR_NUMBER=$(gh pr list \
+  --repo "$OWNER/$REPO" \
+  --search "Closes #${TICKET_N}" \
+  --state open \
+  --json number \
+  --jq '.[0].number // empty')
+
+# Fetch latest Copilot review state
+REVIEW_STATE=$(gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews \
+  --jq '[.[] | select(.user.login == "copilot-pull-request-reviewer")] | last | .state // "PENDING"')
+```
+
+**Decision table:**
+
+| `REVIEW_STATE` | Action |
+|----------------|--------|
+| `APPROVED` | Remove `copilot-review-pending`, add `to-test` |
+| `CHANGES_REQUESTED` | Check iteration count → if ≤ 3: remove `copilot-review-pending`, add `to-dev` (dev picks up in feedback-iteration mode) |
+| `CHANGES_REQUESTED` + iteration > 3 | Remove `copilot-review-pending`, add `to-test`, post warning comment |
+| `PENDING` / `COMMENTED` / null | Skip — poll again next cycle |
+
+**Iteration count**: count existing "Copilot review requested" log entries on the ticket comments. Each dev session in feedback-iteration mode increments this when it re-requests the review.
+
+```
+a. Fetch REVIEW_STATE
+b. If APPROVED:
+   gh issue edit N --remove-label "copilot-review-pending" --add-label "to-test"
+   → human testing gate
+
+c. If CHANGES_REQUESTED + iterations ≤ 3:
+   gh issue edit N --remove-label "copilot-review-pending" --add-label "to-dev"
+   → dev agent auto-launches (feedback-iteration mode, reads PR review threads)
+
+d. If CHANGES_REQUESTED + iterations > 3:
+   gh issue edit N --remove-label "copilot-review-pending" --add-label "to-test"
+   gh issue comment N --body "⚠️ Copilot review unresolved after 3 iterations — human review needed.\nPR: <url>"
+   → human takes over
+
+e. If PENDING/COMMENTED: skip this cycle
+```
+
 **Detects**: `godeploy` label on `to-test` ticket
 
 ```
@@ -141,50 +190,51 @@ Always output a brief summary:
 ```
 ✅ Processed: [list of tickets handled, or "nothing to process"]
 ⏭️  Skipped (locked): [tickets in enriching/dev-in-progress, if any]
+⏳ Awaiting Copilot review: [tickets in copilot-review-pending, if any]
 ```
 
 ### Loop scheduling — drain then sleep
 
-If LOOP = true, appliquer la logique **drain then sleep** :
+If LOOP = true, apply the **drain then sleep** logic:
 
 ```
-ANY_PROCESSED = (au moins un ticket a été traité dans ce run)
+ANY_PROCESSED = (at least one ticket was processed in this run)
 
-Si ANY_PROCESSED = true :
-  → Re-lancer immédiatement sans délai
+If ANY_PROCESSED = true:
+  → Re-launch immediately with no delay
   → CronCreate(
       taskId: "cao-process-{ROLE}",
-      cronExpression: "* * * * *",     ← toutes les minutes (immédiat au sens cron)
+      cronExpression: "* * * * *",     ← every minute (immediate in cron terms)
       prompt: "/cao-process-tickets {ROLE} --loop --interval {INTERVAL}"
     )
-  → Output: "🔁 Ticket traité — re-poll immédiat"
+  → Output: "🔁 Ticket processed — immediate re-poll"
 
-Si ANY_PROCESSED = false (file vide) :
-  → Dormir INTERVAL minutes
+If ANY_PROCESSED = false (queue empty):
+  → Sleep INTERVAL minutes
   → CronCreate(
       taskId: "cao-process-{ROLE}",
       cronExpression: "*/{INTERVAL} * * * *",
       prompt: "/cao-process-tickets {ROLE} --loop --interval {INTERVAL}"
     )
-  → Output: "💤 File vide — prochain poll dans {INTERVAL}min"
+  → Output: "💤 Queue empty — next poll in {INTERVAL}min"
 ```
 
-**Principe** : l'agent vide la file tant qu'il y a du travail, puis dort seulement quand il ne trouve rien. Zéro poll inutile entre deux tickets consécutifs.
+**Principle**: the agent drains the queue as long as there is work, then sleeps only when it finds nothing. Zero unnecessary polls between consecutive tickets.
 
 After CronCreate:
-- Si succès, log :
+- If success, log:
   ```
   RUN_ID = current timestamp in format YYYYMMDD_HHMMSS_loop
   Run: python3 lib/logger.py "{RUN_ID}" "worker" "null" "worker_start" "ok" "loop scheduled" '{"role":"{ROLE}","interval":{INTERVAL},"any_processed":{ANY_PROCESSED}}'
   ```
-- Si échec, log :
+- If failure, log:
   ```
   Run: python3 lib/logger.py "{RUN_ID}" "worker" "null" "schedule_error" "error" "CronCreate failed" '{"role":"{ROLE}"}'
   ```
 
 Then output:
 ```
-⏱️  Next run: [immédiat | dans {INTERVAL}min] (cron: cao-process-{ROLE})
+⏱️  Next run: [immediate | in {INTERVAL}min] (cron: cao-process-{ROLE})
    Stop with: /cancel-cao or ask Claude to delete cron "cao-process-{ROLE}"
 ```
 
@@ -197,31 +247,31 @@ Then output:
 → Done.
 ```
 
-**Loop — plusieurs tickets en attente (drain) :**
+**Loop — multiple tickets waiting (drain):**
 ```
 /cao-process-tickets --loop
 → 🔄 Loop mode — role: all, interval: 5min
 
-run 1 : traite #5 (to-enrich) → ✅ Processed: #5 → 🔁 re-poll immédiat
-run 2 : traite #3 (to-dev)    → ✅ Processed: #3 → 🔁 re-poll immédiat
-run 3 : traite #1 (godeploy)  → ✅ Processed: #1 → 🔁 re-poll immédiat
-run 4 : rien                  → 💤 file vide → ⏱️ prochain poll dans 5min
+run 1: processes #5 (to-enrich) → ✅ Processed: #5 → 🔁 immediate re-poll
+run 2: processes #3 (to-dev)    → ✅ Processed: #3 → 🔁 immediate re-poll
+run 3: processes #1 (godeploy)  → ✅ Processed: #1 → 🔁 immediate re-poll
+run 4: nothing                  → 💤 queue empty → ⏱️ next poll in 5min
 ```
 
-**Loop — file vide au démarrage :**
+**Loop — empty queue at startup:**
 ```
 /cao-process-tickets --loop
 → 🔄 Loop mode — role: all, interval: 5min
 → Nothing to process
-→ 💤 file vide — ⏱️ prochain poll dans 5min
+→ 💤 queue empty — ⏱️ next poll in 5min
 ```
 
-**Loop — intervalle personnalisé :**
+**Loop — custom interval:**
 ```
 /cao-process-tickets dev --loop --interval 10
 → 🔄 Loop mode — role: dev, interval: 10min
 → Nothing to process
-→ 💤 file vide — ⏱️ prochain poll dans 10min
+→ 💤 queue empty — ⏱️ next poll in 10min
 ```
 
 ## Implementation notes

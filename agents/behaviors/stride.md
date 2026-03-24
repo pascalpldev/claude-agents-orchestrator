@@ -9,29 +9,29 @@ used_by: [tech-lead, ux-expert]
 
 *Loren Kohnfelder & Praerit Garg, Microsoft (1999)*
 
-Six catégories de menaces sécurité. N'évaluer que les dimensions pertinentes au ticket — ne pas forcer les 6.
+Six security threat categories. Evaluate only the dimensions relevant to the ticket — do not force all 6.
 
 ## Dimensions
 
-| Lettre | Menace | Question clé |
+| Letter | Threat | Key question |
 |--------|--------|--------------|
-| **S** | Spoofing | Quelqu'un peut-il usurper l'identité d'un user/système ? |
-| **T** | Tampering | Les données peuvent-elles être altérées en transit ou au repos ? |
-| **R** | Repudiation | Les actions peuvent-elles être niées / non traçables ? |
-| **I** | Information disclosure | Des données sensibles sont-elles exposées ? |
-| **D** | Denial of Service | Le service peut-il être rendu indisponible ? |
-| **E** | Elevation of Privilege | Un user peut-il obtenir des droits non autorisés ? |
+| **S** | Spoofing | Can someone impersonate a user/system? |
+| **T** | Tampering | Can data be altered in transit or at rest? |
+| **R** | Repudiation | Can actions be denied / left untraced? |
+| **I** | Information disclosure | Is sensitive data exposed? |
+| **D** | Denial of Service | Can the service be made unavailable? |
+| **E** | Elevation of Privilege | Can a user gain unauthorized rights? |
 
-## Protocole
+## Protocol
 
-1. Identifier les dimensions pertinentes pour ce ticket (souvent 1–3 sur 6)
-2. Pour chaque dimension active : existe-t-il un vecteur d'attaque concret ?
-3. Si oui → mitigation requise, intégrer dans "Risques & impacts" du plan
+1. Identify the relevant dimensions for this ticket (often 1–3 out of 6)
+2. For each active dimension: is there a concrete attack vector?
+3. If yes → mitigation required, integrate into "Risks & impacts" section of the plan
 
 ## Output
 
 ```
-STRIDE applicable : [dimensions pertinentes, ex: I, E]
-Vecteurs identifiés : [liste spécifique ou "(aucun)"]
-Mitigations requises : [liste ou "(aucune)"]
+STRIDE applicable: [relevant dimensions, e.g.: I, E]
+Identified vectors: [specific list or "(none)"]
+Required mitigations: [list or "(none)"]
 ```

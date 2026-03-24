@@ -9,31 +9,31 @@ used_by: [product-builder, tech-lead]
 
 *Clayton Christensen, The Innovator's Solution (2003)*
 
-Les utilisateurs n'ont pas besoin de fonctionnalités — ils ont un "job" à accomplir. Les features ne sont qu'un moyen d'y parvenir. Si le ticket prescrit une solution sans expliquer le problème, c'est un signal d'alarme.
+Users do not need features — they have a "job" to accomplish. Features are merely a means to get there. If the ticket prescribes a solution without explaining the problem, that is a red flag.
 
 ## Questions
 
-- Quel job l'utilisateur "hire" cette fonctionnalité pour accomplir ?
-- Qu'est-ce qu'il fait aujourd'hui à la place, et pourquoi c'est insuffisant ?
-- Comment "done" ressemble pour lui — quel est l'outcome émotionnel ?
-- Quand cette situation se présente-t-elle concrètement dans son quotidien ?
+- What job is the user "hiring" this feature to accomplish?
+- What do they do today instead, and why is that insufficient?
+- What does "done" look like for them — what is the emotional outcome?
+- When does this situation concretely arise in their daily life?
 
-## Format JTBD Statement
+## JTBD Statement format
 
-*"Quand [situation], je veux [motivation] pour [outcome attendu]."*
+*"When [situation], I want [motivation] so that [expected outcome]."*
 
-Exemple : *"Quand je reviens sur le tableau après 3 jours d'absence, je veux voir immédiatement ce qui a changé pour ne pas avoir à relire tout l'historique."*
+Example: *"When I return to the board after 3 days away, I want to immediately see what has changed so I don't have to re-read the entire history."*
 
-## Protocole
+## Protocol
 
-1. Rédiger le JTBD statement en une phrase
-2. Vérifier que la solution proposée dans le ticket accomplit ce job
-3. Si non → challenger le scope ou poser une question de cadrage
-4. Si oui → utiliser le statement pour élaguer les éléments qui n'y contribuent pas
+1. Write the JTBD statement in one sentence
+2. Verify that the solution proposed in the ticket accomplishes this job
+3. If not → challenge the scope or ask a framing question
+4. If yes → use the statement to prune elements that do not contribute to it
 
 ## Output
 
 ```
-JTBD : "Quand X, l'utilisateur veut Y pour Z."
-Alignement avec le ticket : [oui / partiel / non — explication si partiel ou non]
+JTBD: "When X, the user wants Y in order to Z."
+Alignment with the ticket: [yes / partial / no — explanation if partial or no]
 ```

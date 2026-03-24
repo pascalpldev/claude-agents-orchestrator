@@ -120,47 +120,47 @@ Group entries by `run_id`, then by `ticket`. For each group, compute duration (t
 ## Ticket #5 — "Feature: User auth"
 Run 20260321_142301_tl_5 | chief-builder | 14:23:01
 
-| Phase             | Status  | Durée | Message                            |
-|-------------------|---------|-------|------------------------------------|
-| start             | started |       | ticket #5 — Feature: User auth     |
-| context_loaded    | ok      | +4s   | 4 fichiers lus                     |
-| analysis_complete | ok      | +12s  | 2 risques, complexity=M            |
-| plan_posted       | ok      | +26s  | comment #123                       |
-| label_updated     | ok      | +27s  | enriching → enriched               |
-| end               | success | 47s   |                                    |
+| Phase             | Status  | Duration | Message                            |
+|-------------------|---------|----------|------------------------------------|
+| start             | started |          | ticket #5 — Feature: User auth     |
+| context_loaded    | ok      | +4s      | 4 files read                       |
+| analysis_complete | ok      | +12s     | 2 risks, complexity=M              |
+| plan_posted       | ok      | +26s     | comment #123                       |
+| label_updated     | ok      | +27s     | enriching → enriched               |
+| end               | success | 47s      |                                    |
 
 Run 20260321_151000_dev_5 | dev | 15:10:00
 
-| Phase            | Status  | Durée | Message                            |
-|------------------|---------|-------|------------------------------------|
-| start            | started |       | ticket #5 — plan loaded            |
-| context_loaded   | ok      | +2s   |                                    |
-| branch_created   | ok      | +4s   | feat/ticket-5-user-auth            |
-| implement_start  | ok      | +4s   | 6 todos                            |
-| implement_complete| ok     | +90s  |                                    |
-| tests_written    | ok      | +105s | unit, integration                  |
-| self_review      | ok      | +110s | 1 issue found and fixed            |
-| pushed           | ok      | +112s |                                    |
-| pr_created       | ok      | +114s | https://github.com/...             |
-| docs_updated     | ok      | +115s | claude_md=false                    |
-| label_updated    | ok      | +116s | dev-in-progress → to-test          |
-| end              | success | 116s  |                                    |
+| Phase            | Status  | Duration | Message                            |
+|------------------|---------|----------|------------------------------------|
+| start            | started |          | ticket #5 — plan loaded            |
+| context_loaded   | ok      | +2s      |                                    |
+| branch_created   | ok      | +4s      | feat/ticket-5-user-auth            |
+| implement_start  | ok      | +4s      | 6 todos                            |
+| implement_complete| ok     | +90s     |                                    |
+| tests_written    | ok      | +105s    | unit, integration                  |
+| self_review      | ok      | +110s    | 1 issue found and fixed            |
+| pushed           | ok      | +112s    |                                    |
+| pr_created       | ok      | +114s    | https://github.com/...             |
+| docs_updated     | ok      | +115s    | claude_md=false                    |
+| label_updated    | ok      | +116s    | dev-in-progress → to-test          |
+| end              | success | 116s     |                                    |
 
 ---
 
-=== Résumé ===
-Runs : 2  |  Tickets : 1  |  Erreurs : 0
-Durée moy. chief-builder : 47s  |  Durée moy. dev : 116s
+=== Summary ===
+Runs: 2  |  Tickets: 1  |  Errors: 0
+Avg duration chief-builder: 47s  |  Avg duration dev: 116s
 ```
 
 **For `--quiet` mode**, replace the full table with a summary block:
 
 ```
-=== Résumé — <project> — <date range> ===
+=== Summary — <project> — <date range> ===
 
-Tickets traités : N  |  Erreurs : E
-Coût estimé total : ~$X.XX  |  Durée moy. : Xs
-Modèles : claude-sonnet-4-6 (N runs), claude-haiku-4-5 (M runs)
+Tickets processed: N  |  Errors: E
+Total estimated cost: ~$X.XX  |  Avg duration: Xs
+Models: claude-sonnet-4-6 (N runs), claude-haiku-4-5 (M runs)
 ```
 
 **Cost calculation** — for each entry with `phase="end"`, compute estimated cost:
@@ -197,7 +197,7 @@ if model in PRICING:
 
 - Group by ticket number (ascending), then by run timestamp within each group
 - Show only `HH:MM:SS` portion of timestamp in the timeline
-- `Durée` column: `+Ns` offset from run start, or total seconds on the `end` row
+- `Duration` column: `+Ns` offset from run start, or total seconds on the `end` row
 - Flatten `data` JSON to `key=value` pairs (truncate at 60 chars) for the Message column
 - If no entries match the filter: print `No entries found for the given filter.`
 - If `python3` unavailable: `cat ${LOG_DIR}/*.jsonl 2>/dev/null || echo "No logs."` + note to install python3

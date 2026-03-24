@@ -34,7 +34,7 @@ Load a GitHub ticket with fresh context from GitHub. Perfect for discussing with
 3. **Confirm which ticket** if ambiguous
 4. **Show full context**: title, body, recent comments, current labels
 5. **Position as chief-builder** ready to discuss
-6. When you say "ok, enrichis", trigger enrichment via the automated workflow
+6. When you say "ok, enrich it", trigger enrichment via the automated workflow
 
 ## Implementation
 
@@ -63,4 +63,4 @@ As a user, I want to filter search results by date range.
 Shall we discuss this one? Any questions before enrichment?
 ```
 
-Then you discuss, ask questions, or say "ok enrichis le ticket" to trigger enrichment automatically.
+Then you discuss, ask questions, or say "ok, enrich the ticket" to trigger enrichment automatically.

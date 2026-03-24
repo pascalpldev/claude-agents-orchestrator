@@ -1,19 +1,19 @@
 ---
 name: cao-watch
 description: |
-  Vue temps réel des agents en cours — se rafraîchit automatiquement sans changer d'interface.
-  Affiche : agents actifs (ticket, durée, phase, dernier milestone), tickets en attente, activité récente.
+  Real-time view of running agents — refreshes automatically without changing the interface.
+  Displays: active agents (ticket, duration, phase, last milestone), waiting tickets, recent activity.
 
-  Usage :
-  - /cao-watch              → refresh toutes les 30s
-  - /cao-watch --interval 10 → refresh toutes les 10s
-argument-hint: "[--interval <secondes>]"
+  Usage:
+  - /cao-watch              → refresh every 30s
+  - /cao-watch --interval 10 → refresh every 10s
+argument-hint: "[--interval <seconds>]"
 allowed-tools: [Bash]
 ---
 
-# /cao-watch — Vue temps réel
+# /cao-watch — Real-time view
 
-Lance le watcher en continu dans le terminal courant. Se réécrit en place (pas de scroll).
+Runs the watcher continuously in the current terminal. Rewrites in place (no scrolling).
 
 ## Parse arguments
 
@@ -24,7 +24,7 @@ For each token in $ARGUMENTS:
   "--interval <n>" → INTERVAL = n
 ```
 
-## Lancement
+## Launch
 
 ```bash
 _REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -32,38 +32,38 @@ _REPO_ROOT="$(git rev-parse --show-toplevel)"
 python3 "${_REPO_ROOT}/lib/status_watcher.py" --interval {INTERVAL}
 ```
 
-Le script tourne jusqu'à Ctrl+C. Il affiche et rafraîchit en place :
+The script runs until Ctrl+C. It displays and refreshes in place:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- CAO Watch — owner/repo  ⟳ 30s  Ctrl+C pour quitter
- Dernière màj : 14:32:05
+ CAO Watch — owner/repo  ⟳ 30s  Ctrl+C to quit
+ Last update: 14:32:05
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
- AGENTS ACTIFS
+ ACTIVE AGENTS
 ────────────────────────────────────────────────────
-  #42   proud-falcon         12min   Fabrication — Tests        milestone #3
-  #17   swift-eagle           3min   Enrichissement             milestone #1
+  #42   proud-falcon         12min   Build — Tests          milestone #3
+  #17   swift-eagle           3min   Enrichment             milestone #1
 
- EN ATTENTE
+ WAITING
 ────────────────────────────────────────────────────
   ⏳ to-dev              #38    Fix: Auth timeout
   ⏳ to-enrich           #41    Feature: Dark mode
 
- ACTIVITÉ RÉCENTE
+ RECENT ACTIVITY
 ────────────────────────────────────────────────────
-  14:31:42  dev           #42    milestone           Fabrication — Tests  milestone #3
+  14:31:42  dev           #42    milestone           Build — Tests  milestone #3
   14:28:10  chief-builder #17    start               ticket #17 — Feature…
   14:25:00  dev           #42    implement_complete  implementation done
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Prochaine màj dans 30s…
+ Next update in 30s…
 ```
 
 ## Notes
 
-- Agents actifs = lus depuis `.locks/*.lock` (local)
-- Tickets = lus depuis GitHub via `gh issue list` (réseau)
-- Logs = lus depuis `~/.claude/projects/logs/<repo>/<date>.jsonl`
-- Un agent marqué `⚠ GHOST?` n'a pas mis à jour son heartbeat depuis > 20min
-- Pour arrêter : Ctrl+C dans le terminal, ou fermer l'onglet Claude Code
+- Active agents = read from `.locks/*.lock` (local)
+- Tickets = read from GitHub via `gh issue list` (network)
+- Logs = read from `~/.claude/projects/logs/<repo>/<date>.jsonl`
+- An agent marked `⚠ GHOST?` has not updated its heartbeat in > 20min
+- To stop: Ctrl+C in the terminal, or close the Claude Code tab

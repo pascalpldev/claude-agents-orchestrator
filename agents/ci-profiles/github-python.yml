@@ -1,0 +1,35 @@
+# CI Profile — GitHub Actions + Python
+# Placeholders: {{PYTHON_VERSION}}
+# Usage: read this file, replace placeholders, write to .github/workflows/ci.yml
+
+name: CI
+on:
+  pull_request:
+    branches: ["*"]
+  push:
+    branches: ["dev", "main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "{{PYTHON_VERSION}}"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then
+            pip install -e ".[dev]" 2>/dev/null || pip install -e . 2>/dev/null || true
+          fi
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/ -v --tb=short \
+            --cov=src --cov-report=term-missing \
+            --cov-fail-under=70

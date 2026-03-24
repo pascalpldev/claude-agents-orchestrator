@@ -111,7 +111,7 @@ def bust_local_ghosts(
 
         # Signal 1: PID dead — immediate ghost regardless of timestamps
         if pid and not _pid_alive(int(pid)):
-            reason = f"PID {pid} mort"
+            reason = f"PID {pid} dead"
 
         # Signal 2: heartbeat stale — process dead or heartbeat_process stopped
         elif now - last_hb > HEARTBEAT_GHOST_SECS:
@@ -121,7 +121,7 @@ def bust_local_ghosts(
         # Signal 3: milestone stale with extra grace (stuck, not dead)
         elif now - last_ms > MILESTONE_GHOST_SECS + MILESTONE_GRACE_SECS:
             stale_min = int((now - last_ms) / 60)
-            reason = f"milestone stale ({stale_min}min, PID vivant)"
+            reason = f"milestone stale ({stale_min}min, PID alive)"
 
         if reason:
             ghost = {
@@ -183,12 +183,12 @@ def bust_remote_ghosts(
                     continue
 
             if age > MILESTONE_GHOST_SECS:
-                reason = f"dernière activité il y a {int(age / 60)}min (remote)"
+                reason = f"last activity {int(age / 60)}min ago (remote)"
                 ghost = {
                     "ticket":     ticket,
-                    "agent":      "inconnu",
+                    "agent":      "unknown",
                     "machine_id": "?",
-                    "phase":      "inconnu",
+                    "phase":      "unknown",
                     "branch":     "",
                     "reason":     reason,
                     "source":     "remote",
@@ -199,9 +199,9 @@ def bust_remote_ghosts(
                     _cleanup_ghost(
                         owner, repo,
                         ticket=ticket,
-                        agent="inconnu",
+                        agent="unknown",
                         machine_id="?",
-                        phase="inconnu",
+                        phase="unknown",
                         branch="",
                         reason=reason,
                         from_label=label,
@@ -225,14 +225,14 @@ def _cleanup_ghost(
     from_label: str = "dev-in-progress",
     to_label: str = "to-dev",
 ) -> None:
-    branch_info = f"\nBranche: `{branch}`" if branch else ""
+    branch_info = f"\nBranch: `{branch}`" if branch else ""
     machine_info = f"\nMachine: `{machine_id}`" if machine_id and machine_id != "?" else ""
 
     body = (
-        f"👻 **Ghost détecté** — agent `{agent}` ne répond plus ({reason}).{machine_info}\n\n"
-        f"Phase au moment de la détection : `{phase}`{branch_info}\n\n"
-        f"Ticket remis en `{to_label}`. "
-        f"Le prochain agent reprendra depuis le dernier commit pushé sur la branche."
+        f"👻 **Ghost detected** — agent `{agent}` is no longer responding ({reason}).{machine_info}\n\n"
+        f"Phase at time of detection: `{phase}`{branch_info}\n\n"
+        f"Ticket reset to `{to_label}`. "
+        f"The next agent will resume from the last commit pushed to the branch."
     )
     _gh("issue", "comment", ticket, f"--repo={owner}/{repo}", f"--body={body}")
     _gh(
@@ -255,7 +255,7 @@ def run(locks_dir: Path, owner: str, repo: str, dry_run: bool = False) -> int:
 
     prefix = "[DRY RUN] " if dry_run else ""
     if all_ghosts:
-        print(f"\n{prefix}👻 Ghost buster — {len(all_ghosts)} ghost(s) détecté(s) :")
+        print(f"\n{prefix}👻 Ghost buster — {len(all_ghosts)} ghost(s) detected:")
         for g in all_ghosts:
             src = g["source"]
             print(
@@ -264,7 +264,7 @@ def run(locks_dir: Path, owner: str, repo: str, dry_run: bool = False) -> int:
             )
         print()
     else:
-        print(f"{prefix}👻 Ghost buster — aucun ghost détecté.")
+        print(f"{prefix}👻 Ghost buster — no ghosts detected.")
 
     return len(all_ghosts)
 
@@ -273,10 +273,10 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Ghost buster for abandoned agent claims")
-    parser.add_argument("--repo",      help="OWNER/REPO (auto-détecté depuis git remote si absent)")
-    parser.add_argument("--locks-dir", help="Chemin vers le répertoire .locks")
+    parser.add_argument("--repo",      help="OWNER/REPO (auto-detected from git remote if omitted)")
+    parser.add_argument("--locks-dir", help="Path to the .locks directory")
     parser.add_argument("--dry-run",   action="store_true",
-                        help="Détecter sans nettoyer")
+                        help="Detect without cleaning up")
     args = parser.parse_args()
 
     # Auto-detect repo
@@ -288,7 +288,7 @@ if __name__ == "__main__":
         )
         _match = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", _r.stdout.strip())
         if not _match:
-            print("ERROR: impossible de détecter le repo depuis git remote", file=sys.stderr)
+            print("ERROR: could not detect repo from git remote", file=sys.stderr)
             sys.exit(1)
         _owner, _repo = _match.group(1), _match.group(2)
 

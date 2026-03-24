@@ -30,8 +30,8 @@ gh issue create --title "Feature: ..." --label "to-enrich"
 - **`/cao-hello-chief-builder`** — Daily standup, load project state
 - **`/cao-get-ticket #N`** — Load a GitHub ticket for discussion
 - **`/cao-process-tickets`** — Poll tickets and process them (enrichment → dev → test → merge)
-- **`/cao-status`** — Snapshot instantané : tickets actifs, agents en cours, derniers logs
-- **`/cao-show-logs`** — Historique détaillé des runs d'agents
+- **`/cao-status`** — Instant snapshot: active tickets, running agents, recent logs
+- **`/cao-show-logs`** — Detailed history of agent runs
 
 ### Templates (Per-project)
 
@@ -72,6 +72,7 @@ gh issue create --title "Feature: ..." --label "to-enrich"
 | `enriched` | Plan proposed, waiting for your validation |
 | `to-dev` | Validated, ready to implement |
 | `dev-in-progress` | Dev persona running (locked) |
+| `copilot-review-pending` | Waiting for Copilot review — dev will auto-fix if changes requested |
 | `to-test` | Code ready, preview URL posted, ready for testing |
 | `deployed` | Merged to dev branch |
 | `godeploy` | Signal: merge and deploy to production |
@@ -137,8 +138,8 @@ gh issue create \
 ```
 /ticket #5
 → Loads ticket with fresh context
-→ You discuss with team-lead
-→ "Ok enrichis le ticket"
+→ You discuss with chief-builder
+→ "Ok, enrich the ticket"
 → Agent enriches automatically
 ```
 
@@ -147,7 +148,7 @@ gh issue create \
 ```
 /cao-process-tickets
 → Detects "to-enrich" + no assignee
-→ Launches team-lead agent
+→ Launches chief-builder agent
 → Agent enriches + changes label → "enriched"
 ```
 
@@ -225,25 +226,25 @@ Or use Railway/Fly.io cron for production.
 
 ## Architecture — 1 session = 1 agent
 
-Chaque invocation de `/cao-process-tickets` est une session Claude indépendante avec son propre contexte. Il n'y a pas d'accumulation de contexte entre les tickets.
+Each invocation of `/cao-process-tickets` is an independent Claude session with its own context. There is no context accumulation between tickets.
 
 ```
 /cao-process-tickets --loop
-  → session 1 : traite ticket #5 → CronCreate → exit
-  → session 2 : traite ticket #3 → CronCreate → exit  (contexte vide)
-  → session 3 : rien → sleep 5min → exit
+  → session 1 : processes ticket #5 → CronCreate → exit
+  → session 2 : processes ticket #3 → CronCreate → exit  (empty context)
+  → session 3 : nothing → sleep 5min → exit
 ```
 
-L'état du workflow vit entièrement dans GitHub (labels, commentaires, branches git) — pas dans la mémoire de session. Une session qui crashe ne laisse aucune donnée perdue.
+The workflow state lives entirely in GitHub (labels, comments, git branches) — not in session memory. A session that crashes leaves no lost data.
 
-### Observabilité
+### Observability
 
 ```bash
-/cao-status          # snapshot instantané : tickets + agents actifs + derniers logs
-/cao-show-logs       # historique complet des runs
+/cao-status          # instant snapshot: active tickets + running agents + recent logs
+/cao-show-logs       # full run history
 ```
 
-Les milestones de progression sont postés directement en commentaire GitHub sur chaque ticket — visibles en temps réel sans outil supplémentaire.
+Progress milestones are posted directly as GitHub comments on each ticket — visible in real time with no additional tooling.
 
 ---
 

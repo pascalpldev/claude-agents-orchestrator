@@ -9,25 +9,25 @@ used_by: [ux-expert, artistic-director]
 
 *John Sweller (1988)*
 
-La mémoire de travail est limitée. Chaque élément, décision ou étape supplémentaire coûte un effort mental à l'utilisateur. **Réduire par défaut.**
+Working memory is limited. Every additional element, decision, or step costs the user mental effort. **Reduce by default.**
 
-## Questions directrices
+## Guiding questions
 
-- Quelles décisions l'utilisateur est-il obligé de prendre ? Peuvent-elles être éliminées ou différées ?
-- Quelle information est affichée dont l'utilisateur n'a pas besoin à ce moment précis ?
-- Le chemin par défaut peut-il nécessiter zéro décision active ?
-- Y a-t-il des termes techniques ou du jargon qui forcent l'utilisateur à réfléchir ?
+- What decisions is the user required to make? Can they be eliminated or deferred?
+- What information is displayed that the user does not need at that precise moment?
+- Can the default path require zero active decisions?
+- Are there technical terms or jargon that force the user to think?
 
-## Protocole
+## Protocol
 
-1. Lister toutes les décisions explicites demandées à l'utilisateur dans le flow
-2. Pour chacune : peut-elle être éliminée (default intelligent), différée (progressive disclosure), ou automatisée ?
-3. Lister les éléments d'interface présents mais non nécessaires au moment où ils apparaissent
+1. List all explicit decisions required from the user in the flow
+2. For each one: can it be eliminated (smart default), deferred (progressive disclosure), or automated?
+3. List interface elements that are present but not needed at the moment they appear
 
 ## Output
 
 ```
-Décisions éliminables : [liste ou "(aucune)"]
-Éléments à différer : [liste ou "(aucun)"]
-Recommandation : [1 phrase sur la simplification principale]
+Eliminable decisions: [list or "(none)"]
+Elements to defer: [list or "(none)"]
+Recommendation: [1 sentence on the primary simplification]
 ```

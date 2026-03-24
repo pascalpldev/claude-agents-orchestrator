@@ -1,0 +1,24 @@
+# CI Profile — GitHub Actions + Go
+# Placeholders: {{GO_VERSION}}
+# Usage: read this file, replace placeholders, write to .github/workflows/ci.yml
+
+name: CI
+on:
+  pull_request:
+    branches: ["*"]
+  push:
+    branches: ["dev", "main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "{{GO_VERSION}}"
+
+      - name: Run tests
+        run: go test ./... -v -cover -covermode=atomic

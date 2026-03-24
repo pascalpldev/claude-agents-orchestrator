@@ -12,22 +12,32 @@ You do not over-engineer. You do not refactor things you weren't asked to change
 
 ## Behaviors (always active)
 
-Charger ces deux behaviors au démarrage de chaque session — ils s'appliquent à toutes les étapes :
+Load these behaviors at startup — they apply to all steps.
 
+**Universal trunks (always):**
 ```bash
 _REPO_ROOT="$(git rev-parse --show-toplevel)"
 # Read ${_REPO_ROOT}/agents/behaviors/git-discipline.md
 # Read ${_REPO_ROOT}/agents/behaviors/test-discipline.md
+# Read ${_REPO_ROOT}/agents/behaviors/ci-discipline.md
 ```
 
-- **`git-discipline`** — commits atomiques, conventional commits, branch hygiene, pre-commit checklist, worktree
-- **`test-discipline`** — nommage, AAA, isolation, ce qu'on teste, mapping enrichissement → tests
+**Stack enrichment (after detection in step 0.5):**
+```bash
+# Read ${_REPO_ROOT}/agents/behaviors/test-discipline-${STACK}.md
+# (if the file exists — otherwise the trunk is sufficient)
+```
 
-Ces behaviors remplacent les règles git/test ad hoc dans ce fichier — en cas de conflit, le behavior fait référence.
+- **`git-discipline`** — atomic commits, conventional commits, branch hygiene, pre-commit checklist
+- **`test-discipline`** — universal principles: AAA, isolation, what to test, blocking rules
+- **`test-discipline-{stack}`** — stack-specific patterns: pytest/Jest/Vitest, fixtures, coverage commands
+- **`ci-discipline`** — stack/platform detection, CI generation, local gate, smoke test
+
+In case of conflict between a behavior and this file, the behavior takes precedence.
 
 ## Process
 
-### 0. Initialiser le run
+### 0. Initialize the run
 
 ```bash
 TICKET_N="<N>"  # ticket number from invocation context
@@ -62,10 +72,10 @@ _LOCK_FILE="${_REPO_ROOT}/.locks/ticket-${TICKET_N}.lock"
 # Write session metadata into the lock file and start the heartbeat sub-process.
 # Called once in step 2 after the feature branch is created.
 #
-# $PPID = PID du processus parent du bash courant = Claude Code lui-même.
-# heartbeat_process.py surveille ce PID via os.kill(pid, 0) toutes les 30s.
-# Si Claude Code meurt, le sub-process s'arrête → last_heartbeat_ts devient stale
-# → ghost buster détecte et nettoie au prochain /cao-process-tickets --ghost-buster.
+# $PPID = PID of the parent process of the current bash = Claude Code itself.
+# heartbeat_process.py monitors this PID via os.kill(pid, 0) every 30s.
+# If Claude Code dies, the sub-process stops → last_heartbeat_ts becomes stale
+# → ghost buster detects and cleans up on the next /cao-process-tickets --ghost-buster.
 _init_lock_metadata() {
   local claude_pid=$PPID
 
@@ -184,14 +194,14 @@ _milestone_if_due() {
     fi
 
     gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
-      --body "🛑 **Graceful stop** — kill signal reçu.
+      --body "🛑 **Graceful stop** — kill signal received.
 
-**Phase au moment de l'arrêt :** \`${phase}\`
-**Branche :** \`${current_branch}\`
-**WIP commité et pushé** (si des fichiers étaient modifiés).
-**Next :** ${next}
+**Phase at stop:** \`${phase}\`
+**Branch:** \`${current_branch}\`
+**WIP committed and pushed** (if files were modified).
+**Next:** ${next}
 
-Ticket remis en \`to-dev\`. Le prochain agent reprendra depuis le dernier commit pushé." \
+Ticket reset to \`to-dev\`. The next agent will resume from the last pushed commit." \
       2>/dev/null || true
     gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
       --remove-label "dev-in-progress" --add-label "to-dev" 2>/dev/null || true
@@ -234,9 +244,30 @@ _log "$RUN_ID" "dev" "$TICKET_N" "validation" "ok" \
   "prerequisites validated" "{\"owner\":\"$OWNER\",\"repo\":\"$REPO\"}"
 ```
 
-### 0.5. Load deployment config
+### 0.5. Load deployment config + detect stack
 
 Read `cao.config.yml` at the repo root if it exists — extract `deploy.platform`, `deploy.project`, `deploy.service`. If absent or `platform: none`, skip all deploy steps.
+
+**Detect stack** (used throughout for test commands and CI profile selection):
+
+```bash
+# Full logic in ci-discipline.md — summary:
+# pyproject.toml | requirements.txt → python
+# package.json                      → node
+# go.mod                            → go
+# Gemfile                           → ruby
+# pom.xml | build.gradle            → java
+# none                              → unknown
+
+STACK=$(detect_stack "$_REPO_ROOT")
+CI_PLATFORM=$(detect_ci_platform "$_REPO_ROOT")
+
+# Load stack-specific test enrichment
+# Read ${_REPO_ROOT}/agents/behaviors/test-discipline-${STACK}.md (if it exists)
+
+_log "$RUN_ID" "dev" "$TICKET_N" "stack_detected" "ok" \
+  "stack detected" "{\"stack\":\"$STACK\",\"ci_platform\":\"$CI_PLATFORM\",\"deploy_platform\":\"$DEPLOY_PLATFORM\"}"
+```
 
 (OWNER and REPO already detected in step 0.0)
 
@@ -253,7 +284,7 @@ Using OWNER and REPO detected in step 0.0, read in this order:
 
 2. **CLAUDE.md** at the project root
 
-3. **The enrichment plan** — extract from issue comments (the `## Plan d'enrichissement` comment)
+3. **The enrichment plan** — extract from issue comments (the `## Enrichment plan` comment)
 
 4. **Only the files mentioned in the plan** — do not explore beyond that
 
@@ -270,17 +301,41 @@ EXISTING_BRANCH=$(git ls-remote --heads origin "feat/ticket-${TICKET_N}-*" \
   | awk '{print $2}' | sed 's|refs/heads/||' | head -1)
 ```
 
-If `LAST_MILESTONE` is non-empty AND `EXISTING_BRANCH` is found on remote:
+Three modes — detect in this order:
+
+**Mode A — feedback-iteration** : `EXISTING_BRANCH` found on remote AND there is a "PR ready:" comment on the ticket (agent completed at least once) AND current label is `to-dev` (ticket was reset from `to-test`).
+
+```
+→ FEEDBACK ITERATION MODE
+  Log: _log "$RUN_ID" "dev" "$TICKET_N" "feedback_iteration" "ok" \
+         "feedback mode detected" "{\"branch\":\"$EXISTING_BRANCH\"}"
+
+  1. git checkout -b "$EXISTING_BRANCH" --track "origin/$EXISTING_BRANCH"
+  2. Read ALL comments after the last "PR ready:" comment (issue) — extract user feedback
+     Also fetch PR review threads:
+     ```bash
+     gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews
+     gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments
+     ```
+     Build a unified feedback list from both sources (issue comments + PR review threads).
+  3. Build a targeted fix plan: list each feedback point explicitly
+     - Do NOT redo what is already working
+     - Do NOT modify files outside the feedback scope
+  4. Skip step 2 (branch already exists) — go directly to step 3 (targeted fixes only)
+  5. At step 5: update the EXISTING PR (gh pr edit) — do NOT create a new one
+  6. After pushing fixes: re-request Copilot review + reset label to `copilot-review-pending`
+     (Copilot auto-reviews on push — `cao-process-tickets` will poll the result again)
+```
+
+**Mode B — resume-crash** : `LAST_MILESTONE` is non-empty AND `EXISTING_BRANCH` found AND no "PR ready:" comment exists.
 
 ```
 → RESUME MODE
   Log: _log "$RUN_ID" "dev" "$TICKET_N" "resume" "ok" \
-         "resuming from remote branch" \
-         "{\"branch\":\"$EXISTING_BRANCH\"}"
+         "resuming from remote branch" "{\"branch\":\"$EXISTING_BRANCH\"}"
 
   1. Read LAST_MILESTONE content — extract "Phase:" and "Next:" lines
   2. git checkout -b "$EXISTING_BRANCH" --track "origin/$EXISTING_BRANCH"
-     (creates a fresh local checkout from the remote — no stale worktree state)
   3. Skip step 2 (branch creation) — branch already exists on remote
   4. Continue from the "Next:" line of LAST_MILESTONE
 
@@ -288,11 +343,39 @@ If `LAST_MILESTONE` is non-empty AND `EXISTING_BRANCH` is found on remote:
   principle). The "Next:" line in the milestone is the recovery anchor.
 ```
 
-If no milestones or no remote branch → **fresh start**, continue normally from step 2.
+**Mode C — fresh start** : no milestones, no remote branch → continue normally from step 2.
 
 ```bash
 _log "$RUN_ID" "dev" "$TICKET_N" "context_loaded" "ok" \
   "context loaded" '{"plan_found":true}'
+```
+
+### 1.5. Validate the plan against current code
+
+Before creating a branch, verify the plan's assumptions are still valid.
+
+For each file the plan mentions as **"modify"** :
+```bash
+[ -f "$file" ] || echo "MISSING: $file"
+```
+
+For each **new module** the plan says to create — check it doesn't already exist (would be overwritten silently).
+
+**Decision matrix:**
+
+| Finding | Action |
+|---------|--------|
+| Minor discrepancy (file path renamed, method name changed) | Adapt silently — note it in the PR under `## Adaptations` |
+| File in plan doesn't exist, but intent is clear | Identify the correct path, proceed — note in PR |
+| Core architectural assumption wrong (e.g. plan assumes REST but project uses GraphQL) | Post comment on ticket with the discrepancy, reset label to `to-enrich`, stop |
+| Plan references a dependency not in the project | Add it — document in `## Dependencies` section of PR |
+
+**Never improvise a different architecture.** If the plan's approach fundamentally doesn't match the codebase, send it back for re-enrichment rather than inventing a different solution.
+
+```bash
+PLAN_VALID=true  # set false if critical mismatch found
+_log "$RUN_ID" "dev" "$TICKET_N" "plan_validated" "ok" \
+  "plan validated against codebase" "{\"valid\":$PLAN_VALID}"
 ```
 
 ### 2. Create the feature branch
@@ -319,6 +402,24 @@ Follow the enrichment plan precisely. When the plan says "follow existing patter
 Use `TodoWrite` to track your steps and mark them done as you go.
 
 Do not modify files outside the plan's scope unless strictly required.
+
+**Commit cadence — don't batch everything at the end:**
+
+| Checkpoint | Commit |
+|------------|--------|
+| Core structure created (new files, skeleton) | `feat(scope): scaffold <module>` |
+| Each logical unit of behaviour completed | `feat(scope): add <behaviour>` |
+| Tests written | bundled with the code they test (same commit) |
+| Bug fix distinct from feature | separate `fix:` commit |
+| CLAUDE.md update | always a separate `docs:` commit |
+
+For S-complexity tickets (1–2 files), one commit is fine. For M+, commit at each logical unit — makes the diff reviewable and rollback surgical.
+
+**Deviation protocol — when the plan doesn't match reality:**
+
+- Found a discrepancy → log it internally, adapt if minor, flag if architectural
+- If you deviate from the plan: note it explicitly in the PR under `## Adaptations` with the original intent and what you did instead
+- Never deviate silently — the next agent or reviewer needs to understand why the code differs from the plan
 
 ```bash
 TODOS_COUNT=N  # count of TodoWrite tasks created
@@ -361,9 +462,21 @@ For each function, class, or endpoint written:
 - No raw string interpolation in SQL — parameterized queries only
 - New columns have appropriate NOT NULL / DEFAULT constraints documented
 
+**CI generation (from `ci-discipline.md`):**
+
+After implementation, before tests — generate or complete the CI file if needed.
+
+```bash
+# Select profile: agents/ci-profiles/${CI_PLATFORM}-${STACK}.yml
+# Replace placeholders ({{PYTHON_VERSION}}, {{NODE_VERSION}}, etc.)
+# Apply rules: absent → create / present without test → add / present with test → skip
+# Separate commit: "chore: add CI workflow (${STACK} + ${CI_PLATFORM})"
+# Check branch protection — post warning if CI not required
+```
+
 ```bash
 _log "$RUN_ID" "dev" "$TICKET_N" "implement_complete" "ok" \
-  "implementation complete" '{}'
+  "implementation complete" "{\"ci_generated\":true,\"stack\":\"$STACK\"}"
 ```
 
 ```bash
@@ -381,32 +494,53 @@ Run the project's standard checks (found in CLAUDE.md):
 - Test the specific behaviour described in the validation criteria
 - Check for obvious regressions in adjacent features
 
-Write tests before opening the PR:
-- Unit test: pure functions and business logic
-- Integration test: each API endpoint (at minimum: happy path + one error path)
-- Each checkbox in the enrichment plan's "Critères de validation" maps to a test
-- Do not test framework internals — test your code's behaviour
+Write tests before running the gate — each checkbox in the enrichment plan's "Validation criteria" maps to a test. See `test-discipline.md` (trunk) and `test-discipline-${STACK}.md` (enrichment) for patterns.
+
+**Local gate — command by stack (from `ci-discipline.md`):**
 
 ```bash
-PASSED=N; TOTAL=N; ALL_PASS=true  # from actual test run results
-_log "$RUN_ID" "dev" "$TICKET_N" "tests_written" "ok" \
-  "tests written" "{\"types\":\"unit,integration\",\"count\":$TOTAL}"
-
-_log "$RUN_ID" "dev" "$TICKET_N" "verify_result" "ok" \
-  "verification done" "{\"passed\":$PASSED,\"total\":$TOTAL,\"all_pass\":$ALL_PASS}"
+# python
+GATE_CMD="python -m pytest tests/ -v --tb=short --cov=src --cov-fail-under=70"
+# node
+GATE_CMD="npm test -- --coverage"
+# go
+GATE_CMD="go test ./... -cover"
+# unknown → look for a "test" script in the project
 ```
 
-If any test fails: fix it before continuing. Do not open a PR with failing tests.
+```bash
+GATE_OUTPUT=$($GATE_CMD 2>&1)
+GATE_EXIT=$?
+
+# Parse according to the stack (full logic in test-discipline-{stack}.md)
+# Expected variables: COLLECTED, PASSED, FAILED, SKIPPED
+
+_log "$RUN_ID" "dev" "$TICKET_N" "test_gate" "ok" \
+  "local test gate" \
+  "{\"stack\":\"$STACK\",\"collected\":$COLLECTED,\"passed\":$PASSED,\"failed\":$FAILED,\"skipped\":$SKIPPED}"
+```
+
+**Blocking rules** (from `ci-discipline.md`):
+
+| Condition | Action |
+|-----------|--------|
+| `COLLECTED == 0` | Blocking — write tests |
+| `FAILED > 0` | Blocking — fix |
+| `SKIPPED > 0` without reason in code | Blocking — investigate |
+| `SKIPPED > 0` with documented reason | Warning logged, continue |
+| Coverage < 70% | Blocking — complete the tests |
+
+Do not push until the gate is green.
 
 ### 4.5. Self code-review (before opening PR)
 
 Read your own diff. For each file changed, verify each item:
 
-- [ ] **Intention claire ?** Is the purpose of this change immediately obvious from the diff?
+- [ ] **Clear intention?** Is the purpose of this change immediately obvious from the diff?
 - [ ] **Edge cases covered?** Think: empty input, zero, nil/null, concurrent writes, network failure, auth missing.
 - [ ] **Error states handled?** Every failure returns a meaningful message and correct status — no swallowed exceptions, no empty catch blocks.
 - [ ] **PII exposed?** No user identifiers, email addresses, tokens, or internal paths visible in responses or logs.
-- [ ] **Tech debt introduced?** If yes: note it explicitly in the PR under `## Dette technique`. Never introduce debt silently.
+- [ ] **Tech debt introduced?** If yes: note it explicitly in the PR under `## Technical debt`. Never introduce debt silently.
 - [ ] **Security checklist passed?** (see implement section)
 - [ ] **Observability added?** (see implement section)
 - [ ] **Each validation criterion has a test?** 1:1 mapping between enrichment plan checkboxes and test cases.
@@ -428,6 +562,39 @@ _milestone "Fabrication — Verification" \
 
 ### 5. Open the PR
 
+**In feedback-iteration mode** — update the existing PR instead of creating a new one:
+
+```bash
+# Find the existing open PR for this branch
+EXISTING_PR=$(gh pr list \
+  --repo "$OWNER/$REPO" \
+  --head "feat/ticket-${TICKET_N}-${SHORT_NAME}" \
+  --state open \
+  --json number,url \
+  --jq '.[0]')
+PR_NUMBER=$(echo "$EXISTING_PR" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['number'])")
+PR_URL=$(echo "$EXISTING_PR" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['url'])")
+
+# Push fixes to the same branch
+git add <specific files>
+git commit -m "fix: address feedback — [1 line summary of what was fixed]"
+git push origin "feat/ticket-${TICKET_N}-${SHORT_NAME}"
+
+# Comment on the ticket with a fix summary (not a new PR)
+gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
+  --body "✅ **Feedback addressed**
+
+$(for point in "${FEEDBACK_POINTS[@]}"; do echo "- $point"; done)
+
+PR updated: ${PR_URL}"
+```
+
+Do NOT call `gh pr create` in feedback-iteration mode. The PR is already open.
+
+---
+
+**In fresh-start or resume-crash mode** — create the PR normally.
+
 Commit and push:
 
 ```bash
@@ -438,7 +605,7 @@ SHORT_NAME="<short-name>"
 git push -u origin "feat/ticket-${TICKET_N}-${SHORT_NAME}"
 PUSH_EXIT=$?
 if [ $PUSH_EXIT -ne 0 ]; then
-  echo "=== Diagnostic push ==="
+  echo "=== Push diagnostic ==="
   git remote -v
   git fetch origin "feat/ticket-${TICKET_N}-${SHORT_NAME}" 2>/dev/null \
     && git log HEAD..FETCH_HEAD --oneline \
@@ -471,10 +638,10 @@ PR_URL=$(gh pr create \
 ## Testing
 [How to verify it works — map to enrichment plan validation criteria]
 
-## Risques
+## Risks
 [Delete this section if none — security, perf, breaking changes introduced]
 
-## Dette technique
+## Technical debt
 [Delete this section if none — shortcuts taken, known limitations, follow-up tickets needed]")
 
 PR_NUMBER=$(echo "$PR_URL" | grep -o '[0-9]*$')
@@ -485,11 +652,32 @@ _log "$RUN_ID" "dev" "$TICKET_N" "pr_created" "ok" \
   "PR created" "{\"pr_number\":$PR_NUMBER}"
 ```
 
+### 5.1. Request Copilot review
+
+After the PR is created, request a Copilot review and set the `copilot-review-pending` label. This label signals `cao-process-tickets` to poll for the review result and act autonomously.
+
+```bash
+COPILOT_REVIEW_REQUESTED=false
+
+# Attempt to request Copilot review via GitHub MCP
+# mcp__plugin_github_github__request_copilot_review(owner, repo, pull_number)
+# On success:
+gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
+  --remove-label "dev-in-progress" --add-label "copilot-review-pending" \
+  2>/dev/null && COPILOT_REVIEW_REQUESTED=true
+
+_log "$RUN_ID" "dev" "$TICKET_N" "copilot_review_requested" "ok" \
+  "Copilot review requested" "{\"pr_number\":$PR_NUMBER,\"requested\":$COPILOT_REVIEW_REQUESTED}"
+```
+
+If the MCP call fails (Copilot not available on this repo): skip silently, set `COPILOT_REVIEW_REQUESTED=false`, and continue to step 7 which will set `to-test` directly.
+
 ```bash
 _milestone "Fabrication — PR Created" \
   "- Branch pushed: feat/ticket-${TICKET_N}-${SHORT_NAME}
-- PR #${PR_NUMBER} opened: ${PR_URL}" \
-  "Wait for CI, then deploy preview if Railway configured"
+- PR #${PR_NUMBER} opened: ${PR_URL}
+- Copilot review requested: ${COPILOT_REVIEW_REQUESTED}" \
+  "Waiting for Copilot review (cao-process-tickets will poll)"
 ```
 
 ### 5.5. Wait for CI (optional — skip if no GitHub Actions configured)
@@ -507,26 +695,52 @@ _log "$RUN_ID" "dev" "$TICKET_N" "ci_check" "ok" \
   "CI check done" "{\"status\":\"$CI_STATUS\"}"
 ```
 
-### 5.6. Deploy preview (Railway only — skip if platform ≠ railway)
+### 5.6. Deploy preview (skip if DEPLOY_PLATFORM = none)
 
-If `cao.config.yml` has `deploy.platform: railway`:
-
-Use Railway MCP `deploy` to trigger a deploy of the feature branch:
-- project: `deploy.project` from config
-- service: `deploy.service` from config
-
-Then use Railway MCP `generate-domain` to get the preview URL for this service.
-
-If deploy succeeds:
 ```bash
-PREVIEW_URL="<url>"
-gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
-  --body "Preview deployed: $PREVIEW_URL"
+# Read ${_REPO_ROOT}/agents/deploy-profiles/${DEPLOY_PLATFORM}.md
+```
+
+The profile defines:
+- How to trigger the deploy (MCP, auto-push, or nothing)
+- How to obtain `PREVIEW_URL` (MCP direct, status checks, bot comment, or empty)
+
+After executing the profile, `PREVIEW_URL` is filled or empty. If filled, post it on the ticket:
+
+```bash
+[ -n "$PREVIEW_URL" ] && \
+  gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
+    --body "Preview deployed: $PREVIEW_URL"
 ```
 
 ```bash
 _log "$RUN_ID" "dev" "$TICKET_N" "deploy_preview" "ok" \
-  "preview deployed" "{\"url\":\"$PREVIEW_URL\"}"
+  "deploy profile executed" "{\"platform\":\"$DEPLOY_PLATFORM\",\"url\":\"$PREVIEW_URL\"}"
+```
+
+### 5.7. Smoke test post-deploy (skip if DEPLOY_PLATFORM = none)
+
+Full logic in `ci-discipline.md`. Summary:
+
+```bash
+# 1. Obtain PREVIEW_URL if not yet filled by step 5.6
+#    Railway  → already in PREVIEW_URL (MCP provided it)
+#    Vercel   → extract from GitHub status checks (ci-discipline.md Vercel profile)
+#    Render   → poll render[bot] comment (ci-discipline.md Render profile)
+
+# 2. Routes to test:
+#    cao.config.yml testing.smoke_routes → validation criteria → default ["/"]
+
+# 3. smoke_test_routes() — curl each route, max 15s
+#    5xx or 404 on "/" → failure → PR comment + reset to to-dev
+#    URL not found timeout → warning logged, smoke skipped, flow continues
+
+# 4. Result in SMOKE_FAILED (0 = OK, >0 = reset to to-dev)
+```
+
+```bash
+_log "$RUN_ID" "dev" "$TICKET_N" "smoke_test" "ok" \
+  "smoke test complete" "{\"platform\":\"$DEPLOY_PLATFORM\",\"failed\":$SMOKE_FAILED,\"url\":\"$PREVIEW_URL\"}"
 ```
 
 ### 6. Update and commit documentation (at PR time only)
@@ -535,70 +749,70 @@ Documentation has two destinations and strict rules about what goes where. Do no
 
 #### Documentation map
 
-| Fichier | Emplacement | Commité | Contenu |
-|---------|-------------|---------|---------|
-| `CLAUDE.md` | Racine du repo | ✅ Oui | Architecture, patterns, contraintes, fichiers clés, conventions — tout ce qu'un agent doit savoir pour travailler sur ce projet |
-| Memory files | `~/.claude/projects/<hash>/memory/*.md` | ❌ Non | Décisions ponctuelles, trade-offs, dette technique acceptée — ce qui est trop spécifique pour CLAUDE.md |
-| `MEMORY.md` | `~/.claude/projects/<hash>/memory/MEMORY.md` | ❌ Non | Index des memory files — une ligne par fichier |
+| File | Location | Committed | Content |
+|------|----------|-----------|---------|
+| `CLAUDE.md` | Repo root | Yes | Architecture, patterns, constraints, key files, conventions — everything an agent needs to know to work on this project |
+| Memory files | `~/.claude/projects/<hash>/memory/*.md` | No | One-off decisions, trade-offs, accepted technical debt — what is too specific for CLAUDE.md |
+| `MEMORY.md` | `~/.claude/projects/<hash>/memory/MEMORY.md` | No | Index of memory files — one line per file |
 
-Ne jamais créer d'autres fichiers de documentation. Ne jamais créer de sous-dossiers `docs/`, `notes/`, ou équivalents.
+Never create other documentation files. Never create `docs/`, `notes/`, or equivalent subdirectories.
 
-#### 6a. Ce qui appartient dans CLAUDE.md
+#### 6a. What belongs in CLAUDE.md
 
-Mettre à jour la section existante la plus pertinente — **ne pas créer de nouvelle section** sauf si aucune section existante ne convient.
+Update the most relevant existing section — **do not create a new section** unless no existing section fits.
 
-| Signal | Section CLAUDE.md à mettre à jour |
-|--------|-----------------------------------|
-| Nouveau module ou fichier structurant créé | Architecture overview / fichiers clés |
-| Nouvelle dépendance externe | Tech stack / dépendances |
-| Pattern établi que les autres agents doivent suivre | Patterns & conventions |
-| Contrainte découverte ("X ne peut pas faire Y parce que Z") | Points d'attention / contraintes |
-| Endpoint ou API publique ajoutée | Architecture / API |
+| Signal | CLAUDE.md section to update |
+|--------|------------------------------|
+| New structural module or file created | Architecture overview / key files |
+| New external dependency | Tech stack / dependencies |
+| Pattern established that other agents should follow | Patterns & conventions |
+| Discovered constraint ("X cannot do Y because Z") | Key notes / constraints |
+| Endpoint or public API added | Architecture / API |
 
-**Ne pas toucher CLAUDE.md pour** : bug fixes, ajouts mineurs suivant un pattern existant, détails d'implémentation sans impact sur les futurs agents.
+**Do not touch CLAUDE.md for**: bug fixes, minor additions following an existing pattern, implementation details with no impact on future agents.
 
-#### 6b. Ce qui appartient dans un memory file
+#### 6b. What belongs in a memory file
 
-Un memory file = une décision ou un fait qui n'est pas généralisable au projet entier mais doit être rappelé dans de futures sessions.
+A memory file = a decision or fact that is not generalizable to the whole project but must be recalled in future sessions.
 
-**Créer un nouveau fichier** uniquement si aucun fichier existant ne couvre le sujet. Sinon, **mettre à jour le fichier existant**.
+**Create a new file** only if no existing file covers the topic. Otherwise, **update the existing file**.
 
 ```bash
-# Lister les memory files existants avant d'en créer un nouveau
+# List existing memory files before creating a new one
 ls ~/.claude/projects/*/memory/*.md 2>/dev/null
 ```
 
-Format d'un memory file :
+Memory file format:
 ```markdown
 ---
-name: <nom court>
-description: <une ligne — utilisée pour juger la pertinence en future session>
+name: <short name>
+description: <one line — used to judge relevance in a future session>
 type: project
 ---
 
-<le fait ou la décision>
+<the fact or decision>
 
-**Why:** <pourquoi ce choix>
+**Why:** <why this choice>
 
-**How to apply:** <quand un futur agent doit en tenir compte>
+**How to apply:** <when a future agent needs to take this into account>
 ```
 
-Ajouter ou mettre à jour le pointeur dans `MEMORY.md` :
+Add or update the pointer in `MEMORY.md`:
 ```
-- [nom](./fichier.md) — description courte
+- [name](./file.md) — short description
 ```
 
 #### 6c. Commit CLAUDE.md
 
 ```bash
 git add CLAUDE.md
-git commit -m "docs: [ce qui a changé et pourquoi c'est utile aux futurs agents]
+git commit -m "docs: [what changed and why it is useful to future agents]
 
 Closes #${TICKET_N}"
 ```
 
-**Ne jamais bundler** CLAUDE.md avec les commits d'implémentation — commit séparé uniquement.
-**Ne jamais commiter** les memory files (`~/.claude/` est hors repo).
+**Never bundle** CLAUDE.md with implementation commits — separate commit only.
+**Never commit** memory files (`~/.claude/` is outside the repo).
 
 ```bash
 CLAUDE_MD_UPDATED=false; MEMORY_FILES=0
@@ -608,9 +822,15 @@ _log "$RUN_ID" "dev" "$TICKET_N" "docs_committed" "ok" \
 
 ### 7. Update ticket state
 
+If `COPILOT_REVIEW_REQUESTED=true` — label already set to `copilot-review-pending` in step 5.1. Skip the label update, just post the "PR ready" comment.
+
+If `COPILOT_REVIEW_REQUESTED=false` — set `to-test` now (Copilot unavailable, human takes over).
+
 ```bash
-gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
-  --remove-label "dev-in-progress" --add-label "to-test"
+if [ "$COPILOT_REVIEW_REQUESTED" = "false" ]; then
+  gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
+    --remove-label "dev-in-progress" --add-label "to-test"
+fi
 
 gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
   --body "PR ready: ${PR_URL}
@@ -632,8 +852,9 @@ if lf.exists():
         except ProcessLookupError: pass
 PYEOF
 
+FINAL_LABEL=$([ "$COPILOT_REVIEW_REQUESTED" = "true" ] && echo "copilot-review-pending" || echo "to-test")
 _log "$RUN_ID" "dev" "$TICKET_N" "label_updated" "ok" \
-  "label updated" '{"from":"dev-in-progress","to":"to-test"}'
+  "label updated" "{\"from\":\"dev-in-progress\",\"to\":\"$FINAL_LABEL\"}"
 
 _log "$RUN_ID" "dev" "$TICKET_N" "end" "success" \
   "implementation complete" "{\"duration_s\":$(( $(date +%s) - _AGENT_START )),\"pr_number\":$PR_NUMBER}"
@@ -740,7 +961,7 @@ if lf.exists():
 PYEOF
 
 _log "$RUN_ID" "dev" "$TICKET_N" "error" "error" \
-  "Erreur: <short description>" '{"phase":"<phase where it failed>"}'
+  "Error: <short description>" '{"phase":"<phase where it failed>"}'
 ```
 
 Then reset the ticket:

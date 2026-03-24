@@ -9,26 +9,26 @@ used_by: [tech-lead]
 
 *Robert C. Martin, Clean Code (2008)*
 
-"Laisse le code plus propre que tu ne l'as trouvé." Quand on touche un fichier, signaler la dette technique adjacente qui mérite d'être adressée dans le même PR.
+"Leave the code cleaner than you found it." When touching a file, flag adjacent technical debt that deserves to be addressed in the same PR.
 
-## Contraintes strictes
+## Strict constraints
 
-- Seulement si c'est dans le scope naturel du changement (même fichier ou module)
-- Seulement si ça ne crée pas de risque additionnel
-- Seulement si l'effort est proportionné (< 20% du scope principal estimé)
+- Only if it is within the natural scope of the change (same file or module)
+- Only if it does not create additional risk
+- Only if the effort is proportionate (< 20% of the estimated primary scope)
 
-Ce behavior est **toujours en mode Amplify** — jamais en Challenge.
+This behavior is **always in Amplify mode** — never in Challenge.
 
-## Protocole
+## Protocol
 
-1. Pour chaque fichier touché par le ticket : y a-t-il de la dette technique évidente ?
-2. Si oui : est-ce dans le scope naturel ? L'effort est-il < 20% du ticket ?
-3. Si oui → signaler comme amplification dans "Apports des rôles"
-4. Si non → silence (ne pas créer de scope creep)
+1. For each file touched by the ticket: is there obvious technical debt?
+2. If yes: is it within the natural scope? Is the effort < 20% of the ticket?
+3. If yes → flag as an amplification under "Role contributions"
+4. If no → silence (do not create scope creep)
 
 ## Output
 
 ```
-Boy Scout → amplify : [fichier] — [description de la dette] adressable dans ce PR.
-Effort estimé : [XS / S]. Risque additionnel : aucun.
+Boy Scout → amplify: [file] — [description of the debt] addressable in this PR.
+Estimated effort: [XS / S]. Additional risk: none.
 ```

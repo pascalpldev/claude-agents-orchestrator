@@ -1,56 +1,56 @@
 ---
 name: git-discipline
-description: Bonnes pratiques git — commits atomiques, conventions, branch hygiene, worktree
+description: Git best practices — atomic commits, conventions, branch hygiene, worktree
 scope: dev persona (always)
 reference: Conventional Commits 1.0 (conventionalcommits.org), Git Book (Chacon & Straub)
 ---
 
 # Git Discipline
 
-## Commits atomiques
+## Atomic commits
 
-Un commit = un changement logique cohérent. Ni trop petit (pas un commit par ligne), ni trop grand (pas "implement everything").
+One commit = one coherent logical change. Neither too small (not one commit per line), nor too large (not "implement everything").
 
-**Découper si** :
-- La description du commit nécessite "and" → deux commits
-- Un reviewer pourrait vouloir reverter une partie sans l'autre → deux commits
-- Un fichier de doc change indépendamment du code → commit séparé
+**Split if**:
+- The commit description requires "and" → two commits
+- A reviewer might want to revert part of it without the other → two commits
+- A doc file changes independently from code → separate commit
 
-**Ne pas découper si** :
-- Le test et le code qu'il teste → même commit
-- La migration et le modèle qu'elle supporte → même commit
-- Un refactor préparatoire et son usage → même commit si insécables
+**Do not split if**:
+- The test and the code it tests → same commit
+- The migration and the model it supports → same commit
+- A preparatory refactor and its usage → same commit if inseparable
 
-## Format des messages de commit
+## Commit message format
 
 ```
-<type>(<scope>): <description impérative, présent, minuscule>
+<type>(<scope>): <imperative description, present tense, lowercase>
 
-[corps optionnel — le POURQUOI, pas le comment]
+[optional body — the WHY, not the how]
 
-[footer optionnel — Closes #N, BREAKING CHANGE: ...]
+[optional footer — Closes #N, BREAKING CHANGE: ...]
 ```
 
-**Types** (Conventional Commits) :
+**Types** (Conventional Commits):
 
-| Type | Quand |
-|------|-------|
-| `feat` | Nouvelle fonctionnalité visible |
-| `fix` | Correction de bug |
-| `refactor` | Restructuration sans changement de comportement |
-| `test` | Ajout ou correction de tests uniquement |
-| `docs` | Documentation uniquement (CLAUDE.md, README) |
-| `chore` | Config, tooling, dépendances — pas de code prod |
-| `perf` | Optimisation de performance |
+| Type | When |
+|------|------|
+| `feat` | New visible feature |
+| `fix` | Bug fix |
+| `refactor` | Restructuring without behavior change |
+| `test` | Adding or fixing tests only |
+| `docs` | Documentation only (CLAUDE.md, README) |
+| `chore` | Config, tooling, dependencies — no prod code |
+| `perf` | Performance optimization |
 
-**Règles** :
-- Description en impératif : "add", "fix", "remove" — pas "added", "fixes", "removed"
-- Minuscule, pas de point final
-- 72 caractères max sur la première ligne
-- Le corps explique *pourquoi* le changement, pas *ce qu'il fait* (le diff le montre)
-- `Closes #N` en footer lie automatiquement le commit au ticket GitHub
+**Rules**:
+- Description in imperative: "add", "fix", "remove" — not "added", "fixes", "removed"
+- Lowercase, no trailing period
+- 72 characters max on the first line
+- The body explains *why* the change, not *what it does* (the diff shows that)
+- `Closes #N` in the footer automatically links the commit to the GitHub ticket
 
-**Exemples** :
+**Examples**:
 ```
 feat(auth): add JWT refresh token rotation
 
@@ -68,76 +68,76 @@ refactor(db): extract query builder from UserService
 
 ## Branch hygiene
 
-**Nommage** (déjà défini dans dev.md) : `feat/ticket-<N>-<short-name>`
+**Naming** (already defined in dev.md): `feat/ticket-<N>-<short-name>`
 
-**Garder la branch à jour** — avant d'ouvrir la PR et si la branch est ouverte > 2 jours :
+**Keep the branch up to date** — before opening the PR and if the branch has been open > 2 days:
 ```bash
 git fetch origin
 git rebase origin/dev
-# Si conflits : résoudre, puis git rebase --continue
+# If conflicts: resolve, then git rebase --continue
 ```
 
-Préférer `rebase` à `merge` pour garder un historique linéaire sur les branches feature.
+Prefer `rebase` over `merge` to maintain a linear history on feature branches.
 
-**Ne jamais** rebaser une branch partagée (plusieurs agents/personnes y ont pushé).
+**Never** rebase a shared branch (where multiple agents/people have pushed).
 
-**Après merge de la PR** : supprimer la branch locale et distante :
+**After the PR is merged**: delete the local and remote branch:
 ```bash
 git checkout dev
 git pull origin dev
 git branch -d feat/ticket-<N>-<short-name>
-# La branch distante est supprimée automatiquement si "delete branch on merge" est activé sur GitHub
+# The remote branch is deleted automatically if "delete branch on merge" is enabled on GitHub
 ```
 
 ## Pre-commit checklist
 
-Avant chaque `git commit`, vérifier :
+Before each `git commit`, verify:
 
-- [ ] `git diff --staged` relu — pas de fichier de debug, pas de `.env`, pas de secret
-- [ ] Pas de `console.log`, `print()`, `debugger`, `TODO` non intentionnel dans le diff stagé
-- [ ] Les fichiers stagés sont cohérents avec la description du commit
-- [ ] Les tests passent (`npm test` / `pytest` / équivalent)
-- [ ] Pas de fichier de lock (`.lock`) ni de fichier généré commités par erreur
+- [ ] `git diff --staged` reviewed — no debug files, no `.env`, no secrets
+- [ ] No `console.log`, `print()`, `debugger`, unintentional `TODO` in the staged diff
+- [ ] Staged files are consistent with the commit description
+- [ ] Tests pass (`npm test` / `pytest` / equivalent)
+- [ ] No lock files (`.lock`) or generated files committed by mistake
 
 ```bash
-# Toujours stager explicitement — jamais git add .
+# Always stage explicitly — never git add .
 git add src/specific/file.py tests/test_specific.py
-git diff --staged  # relecture obligatoire
+git diff --staged  # mandatory review
 git commit -m "..."
 ```
 
-## Stash — usage limité
+## Stash — limited use
 
-Utiliser `git stash` uniquement pour un contexte switch rapide (< 30 min). Pour tout travail plus long : créer une branch WIP.
+Use `git stash` only for a quick context switch (< 30 min). For any longer work: create a WIP branch.
 
 ```bash
-git stash push -m "wip: description courte"
-# ... switch de contexte ...
+git stash push -m "wip: short description"
+# ... context switch ...
 git stash pop
 ```
 
-Ne jamais laisser un stash > 24h. Si le travail en cours a de la valeur : commit WIP sur une branch.
+Never leave a stash > 24h. If the work in progress has value: WIP commit on a branch.
 
-## Worktree — quand l'utiliser
+## Worktree — when to use it
 
-`git worktree` permet de travailler sur plusieurs branches simultanément dans des répertoires séparés, sans `git stash` ni `git checkout`.
+`git worktree` allows working on multiple branches simultaneously in separate directories, without `git stash` or `git checkout`.
 
-**Utiliser quand** :
-- Un bug critique arrive pendant qu'une feature est en cours (hotfix sans toucher la feature branch)
-- Deux tickets indépendants doivent avancer en parallèle
-- Vérifier le comportement de la branch `dev` pendant qu'on travaille sur `feat/...`
+**Use when**:
+- A critical bug arrives while a feature is in progress (hotfix without touching the feature branch)
+- Two independent tickets need to progress in parallel
+- Checking the behavior of the `dev` branch while working on `feat/...`
 
 ```bash
-# Créer un worktree pour un hotfix
+# Create a worktree for a hotfix
 git worktree add ../repo-hotfix fix/critical-bug-<N>
 
-# Travailler dans le worktree
+# Work in the worktree
 cd ../repo-hotfix
-# ... implémenter, commiter, pusher ...
+# ... implement, commit, push ...
 
-# Supprimer le worktree quand terminé
+# Remove the worktree when done
 cd ../repo-main
 git worktree remove ../repo-hotfix
 ```
 
-**Ne pas utiliser** pour le flux normal ticket-par-ticket — le worktree est un outil de parallélisme, pas une habitude par défaut.
+**Do not use** for the normal ticket-by-ticket flow — worktree is a parallelism tool, not a default habit.
