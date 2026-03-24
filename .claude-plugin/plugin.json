@@ -1,7 +1,7 @@
 {
   "name": "claude-agents-orchestrator",
   "description": "Automated GitHub ticket management workflow for Claude Code — enrichment, development, testing, and deployment via issue labels and agents",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": {
     "name": "pascalpldev"
   },
@@ -9,7 +9,7 @@
   "skills": [
     "./skills/cao-process-tickets",
     "./skills/cao-get-ticket",
-    "./skills/cao-hello-team-lead",
+    "./skills/cao-hello-chief-builder",
     "./skills/cao-show-logs",
     "./skills/cao-cancel-loop",
     "./skills/cao-worker"

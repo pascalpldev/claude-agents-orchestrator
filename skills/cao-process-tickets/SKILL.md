@@ -5,11 +5,11 @@ description: |
 
   Accepts an optional role filter and loop mode:
   - /cao-process-tickets             → process all workflows, once
-  - /cao-process-tickets team-lead   → enrichment only (to-enrich → enriched)
+  - /cao-process-tickets chief-builder   → enrichment only (to-enrich → enriched)
   - /cao-process-tickets dev         → dev + merge only (to-dev → to-test, godeploy → deployed)
   - /cao-process-tickets --loop      → process all, then schedule every 5 minutes
   - /cao-process-tickets dev --loop  → dev only, looping every 5 minutes
-argument-hint: "[team-lead|dev|all] [--loop] [--interval <minutes>]"
+argument-hint: "[chief-builder|dev|all] [--loop] [--interval <minutes>]"
 allowed-tools: [Read, Glob, Grep, Bash, Agent]
 ---
 
@@ -27,7 +27,7 @@ LOOP = false
 INTERVAL = 5          # minutes, default
 
 For each token in $ARGUMENTS:
-  "team-lead"           → ROLE = "team-lead"
+  "chief-builder"           → ROLE = "chief-builder"
   "dev"                 → ROLE = "dev"
   "all"                 → ROLE = "all"
   "--loop"              → LOOP = true
@@ -53,10 +53,10 @@ Run only the workflows matching ROLE:
 | ROLE | Workflows to run |
 |------|-----------------|
 | `all` | 1 + 2 + 3 |
-| `team-lead` | 1 only |
+| `chief-builder` | 1 only |
 | `dev` | 2 + 3 |
 
-### 1. Enrichment workflow (team-lead)
+### 1. Enrichment workflow (chief-builder)
 
 Skip if ROLE = "dev".
 
@@ -64,7 +64,7 @@ Skip if ROLE = "dev".
 
 ```
 a. Lock: gh issue edit N --add-label "enriching" --remove-label "to-enrich"
-b. Launch team-lead agent:
+b. Launch chief-builder agent:
    - Reads ticket via gh issue view
    - Writes enrichment plan
    - Posts as comment via gh issue comment
@@ -73,14 +73,14 @@ b. Launch team-lead agent:
 
 **If challenged**: `to-enrich` + feedback comment
 ```
-a. team-lead agent re-reads comments
+a. chief-builder agent re-reads comments
 b. Responds to feedback
 c. Changes label to-enrich → enriched
 ```
 
 ### 2. Dev workflow (dev)
 
-Skip if ROLE = "team-lead".
+Skip if ROLE = "chief-builder".
 
 **Detects**: `to-dev` label + no assignee
 
@@ -101,7 +101,7 @@ b. Fixes, commits, changes label → to-test
 
 ### 3. Merge workflow (dev)
 
-Skip if ROLE = "team-lead".
+Skip if ROLE = "chief-builder".
 
 **Detects**: `godeploy` label on `to-test` ticket
 
@@ -164,11 +164,11 @@ Then output:
 
 **Team-lead only, looping every 5 min:**
 ```
-/cao-process-tickets team-lead --loop
-→ 🔄 Loop mode — role: team-lead, interval: 5min
+/cao-process-tickets chief-builder --loop
+→ 🔄 Loop mode — role: chief-builder, interval: 5min
 → Enriches #5
 → ✅ Processed: #5
-→ ⏱️ Next run in 5 min (cron: cao-process-team-lead)
+→ ⏱️ Next run in 5 min (cron: cao-process-chief-builder)
 ```
 
 **Dev only, custom interval:**

@@ -3,16 +3,16 @@ name: cao-show-logs
 description: |
   Read and display agent run logs for the current project.
 
-  Shows JSONL log entries written by team-lead and dev agents at each phase.
+  Shows JSONL log entries written by chief-builder and dev agents at each phase.
   Useful for tracking what agents did, how long they took, and diagnosing errors.
 
   Usage:
     /cao-show-logs                    — today's runs, grouped by ticket
     /cao-show-logs --last 10          — last 10 log entries across all tickets
     /cao-show-logs --ticket 12        — full history for ticket #12
-    /cao-show-logs --agent team-lead  — runs by team-lead only
+    /cao-show-logs --agent chief-builder  — runs by chief-builder only
     /cao-show-logs --errors           — only runs with error events
-argument-hint: "[--errors] [--ticket N] [--last N] [--agent team-lead|dev] [--verbose] [--quiet]"
+argument-hint: "[--errors] [--ticket N] [--last N] [--agent chief-builder|dev] [--verbose] [--quiet]"
 allowed-tools: [Bash, Read]
 ---
 
@@ -118,7 +118,7 @@ Group entries by `run_id`, then by `ticket`. For each group, compute duration (t
 === Logs: <project> — <date range> ===
 
 ## Ticket #5 — "Feature: User auth"
-Run 20260321_142301_tl_5 | team-lead | 14:23:01
+Run 20260321_142301_tl_5 | chief-builder | 14:23:01
 
 | Phase             | Status  | Durée | Message                            |
 |-------------------|---------|-------|------------------------------------|
@@ -150,7 +150,7 @@ Run 20260321_151000_dev_5 | dev | 15:10:00
 
 === Résumé ===
 Runs : 2  |  Tickets : 1  |  Erreurs : 0
-Durée moy. team-lead : 47s  |  Durée moy. dev : 116s
+Durée moy. chief-builder : 47s  |  Durée moy. dev : 116s
 ```
 
 **For `--quiet` mode**, replace the full table with a summary block:

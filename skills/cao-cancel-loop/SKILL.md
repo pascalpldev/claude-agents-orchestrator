@@ -3,7 +3,7 @@ name: cao-cancel-loop
 description: |
   Cancel an active cao-process-tickets loop.
   Deletes the CronCreate task(s) created by /cao-process-tickets --loop.
-argument-hint: "[team-lead|dev|all]"
+argument-hint: "[chief-builder|dev|all]"
 allowed-tools: [Bash]
 ---
 
@@ -15,7 +15,7 @@ Stops the scheduled polling started by `/cao-process-tickets --loop`.
 
 Parse `$ARGUMENTS` to determine which cron to cancel:
 - No argument or `all` → cancel all `cao-process-*` crons
-- `team-lead` → cancel `cao-process-team-lead`
+- `chief-builder` → cancel `cao-process-chief-builder`
 - `dev` → cancel `cao-process-dev`
 
 Use `CronDelete` to remove the matching task(s), then confirm:

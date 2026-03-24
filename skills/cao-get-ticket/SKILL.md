@@ -3,7 +3,7 @@ name: cao-get-ticket
 description: |
   Load a GitHub ticket by number or partial title and discuss it with fresh context.
 
-  Use this when you want to discuss a specific ticket with the team-lead bot before processing it.
+  Use this when you want to discuss a specific ticket with the chief-builder before processing it.
   Say /cao-get-ticket #5 or /cao-get-ticket "Feature name" to load the ticket, confirm it's the right one, and discuss.
 
   This loads the ticket's current state from GitHub (fresh data) and prepares for inline discussion
@@ -14,7 +14,7 @@ allowed-tools: [Read, Glob, Grep, Bash]
 
 # /cao-get-ticket — Load and discuss a GitHub ticket
 
-Load a GitHub ticket with fresh context from GitHub. Perfect for discussing with the team-lead before enrichment, or checking the current state of a ticket.
+Load a GitHub ticket with fresh context from GitHub. Perfect for discussing with the chief-builder before enrichment, or checking the current state of a ticket.
 
 ## Usage
 
@@ -33,7 +33,7 @@ Load a GitHub ticket with fresh context from GitHub. Perfect for discussing with
    - If argument is a text search: `gh issue list --repo OWNER/REPO --search "<text>" --json number,title,labels`
 3. **Confirm which ticket** if ambiguous
 4. **Show full context**: title, body, recent comments, current labels
-5. **Position as team-lead** ready to discuss
+5. **Position as chief-builder** ready to discuss
 6. When you say "ok, enrichis", trigger enrichment via the automated workflow
 
 ## Implementation
@@ -42,7 +42,7 @@ Load a GitHub ticket with fresh context from GitHub. Perfect for discussing with
 2. Detect OWNER/REPO from `git remote get-url origin`
 3. Fetch ticket via `gh issue view` or `gh issue list`
 4. Display content
-5. Position Claude as team-lead ready to discuss
+5. Position Claude as chief-builder ready to discuss
 6. When approved, trigger enrichment via the automated workflow
 
 ## Example

@@ -7,14 +7,14 @@
   "homepage": "https://github.com/pascalpldev/claude-agents-orchestrator",
   "repository": "https://github.com/pascalpldev/claude-agents-orchestrator",
   "metadata": {
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "plugins": [
     {
       "name": "claude-agents-orchestrator",
       "source": "./",
       "description": "Automated GitHub ticket management workflow for Claude Code — enrichment, development, testing, and deployment via issue labels and agents",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": {
         "name": "pascalpldev"
       },

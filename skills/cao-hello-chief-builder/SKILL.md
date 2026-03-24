@@ -1,19 +1,19 @@
 ---
-name: cao-hello-team-lead
+name: cao-hello-chief-builder
 description: |
   Morning standup — load the current project state and prepare for the day.
 
-  Use /cao-hello-team-lead at the start of your day to:
+  Use /cao-hello-chief-builder at the start of your day to:
   - Check open tickets (to-enrich, to-dev, to-test)
   - See what's been deployed
   - Understand blockers or feedback
   - Be ready to discuss and make decisions
 
-  This is the "team lead" perspective: full context of what's happening.
+  This is the chief-builder perspective: full context of what's happening.
 allowed-tools: [Read, Glob, Grep, Bash]
 ---
 
-# /cao-hello-team-lead — Daily standup & context refresh
+# /cao-hello-chief-builder — Daily standup & context refresh
 
 At the start of a session, call this to get full context of the project.
 
@@ -52,7 +52,7 @@ At the start of a session, call this to get full context of the project.
    #3: "Can you explain the database schema?"
    ```
 
-5. **Position as team-lead:**
+5. **Position as chief-builder:**
    - Ready to discuss any ticket
    - Ready to prioritize
    - Ready to help unblock agents
@@ -62,7 +62,7 @@ At the start of a session, call this to get full context of the project.
 **Option A: Discuss a specific ticket**
 ```
 /cao-get-ticket #5
-→ Discuss with team-lead here
+→ Discuss with chief-builder here
 ```
 
 **Option B: Launch automation**
