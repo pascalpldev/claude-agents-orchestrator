@@ -831,12 +831,41 @@ if [ "$COPILOT_REVIEW_REQUESTED" = "false" ]; then
   gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
     --remove-label "dev-in-progress" --add-label "to-test"
 fi
-
-gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
-  --body "PR ready: ${PR_URL}
-
-Preview: ${PREVIEW_URL:-N/A}"
 ```
+
+Before posting the "PR ready" comment, build a structured test guide from the enrichment plan's acceptance criteria.
+
+For each acceptance criterion listed in the plan:
+- Mark `[x]` if it was verified automatically (covered by a passing test or smoke test result)
+- Mark `[ ]` if it requires manual verification — and write the exact steps to reproduce (URL, action, expected result)
+
+```bash
+gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
+  --body "✅ **PR ready:** ${PR_URL}
+🔗 **Preview:** ${PREVIEW_URL:-N/A}
+
+## How to test
+
+[For each manually-verifiable criterion: numbered steps with the exact URL, action to perform, and expected result. Be specific — no vague instructions like 'test the feature'.]
+
+Example:
+1. Go to \`${PREVIEW_URL}/settings\`
+2. Submit the form with an empty email field
+3. Expected: inline validation error, form not submitted
+
+## Acceptance criteria
+
+[One line per criterion from the enrichment plan]
+- [x] Criterion A — covered by unit test \`test_<name>\`
+- [x] Criterion B — smoke test returned HTTP 200 on \`/route\`
+- [ ] Criterion C — manual: [exact steps above, ref step N]
+
+## What was NOT tested
+
+[Any criterion that could not be verified automatically AND could not be tested on the preview — explain why and what risk it carries. Delete section if empty.]"
+```
+
+**Rule**: every acceptance criterion must appear in the list — either checked automatically or with explicit manual steps. A criterion with no test path is a blocker: either write the test or document the risk.
 
 ```bash
 # Kill the watchdog — normal completion, no cleanup needed
