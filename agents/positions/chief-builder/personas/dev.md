@@ -72,14 +72,14 @@ _LOCK_FILE="${_REPO_ROOT}/.locks/ticket-${TICKET_N}.lock"
 # Write session metadata into the lock file and start the heartbeat sub-process.
 # Called once in step 2 after the feature branch is created.
 #
-# $PPID = PID of the parent bash process = Claude Code itself.
+# $PPID = PID of the parent process of the current bash = Claude Code itself.
 # heartbeat_process.py monitors this PID via os.kill(pid, 0) every 30s.
 # If Claude Code dies, the sub-process stops → last_heartbeat_ts becomes stale
 # → ghost buster detects and cleans up on the next /cao-process-tickets --ghost-buster.
 _init_lock_metadata() {
   local claude_pid=$PPID
 
-  # Write PID, machine_id, branch, and timestamps into the lock file.
+  # Enrich the lock file with PID, machine_id, branch, timestamps.
   python3 - <<PYEOF
 import json, socket, subprocess, time
 from pathlib import Path
@@ -196,12 +196,12 @@ _milestone_if_due() {
     gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
       --body "🛑 **Graceful stop** — kill signal received.
 
-**Phase at stop time:** \`${phase}\`
+**Phase at stop:** \`${phase}\`
 **Branch:** \`${current_branch}\`
 **WIP committed and pushed** (if files were modified).
 **Next:** ${next}
 
-Ticket reset to \`to-dev\`. Next agent will resume from the last pushed commit." \
+Ticket reset to \`to-dev\`. The next agent will resume from the last pushed commit." \
       2>/dev/null || true
     gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
       --remove-label "dev-in-progress" --add-label "to-dev" 2>/dev/null || true
@@ -284,7 +284,7 @@ Using OWNER and REPO detected in step 0.0, read in this order:
 
 2. **CLAUDE.md** at the project root
 
-3. **The enrichment plan** — extract from issue comments (the `## Enrichment Plan` comment)
+3. **The enrichment plan** — extract from issue comments (the `## Enrichment plan` comment)
 
 4. **Only the files mentioned in the plan** — do not explore beyond that
 
@@ -353,7 +353,7 @@ For each file the plan mentions as **"modify"** :
 
 For each **new module** the plan says to create — check it doesn't already exist (would be overwritten silently).
 
-**Decision matrix :**
+**Decision matrix:**
 
 | Finding | Action |
 |---------|--------|
@@ -395,7 +395,7 @@ Use `TodoWrite` to track your steps and mark them done as you go.
 
 Do not modify files outside the plan's scope unless strictly required.
 
-**Commit cadence — don't batch everything at the end :**
+**Commit cadence — don't batch everything at the end:**
 
 | Checkpoint | Commit |
 |------------|--------|
@@ -407,7 +407,7 @@ Do not modify files outside the plan's scope unless strictly required.
 
 For S-complexity tickets (1–2 files), one commit is fine. For M+, commit at each logical unit — makes the diff reviewable and rollback surgical.
 
-**Deviation protocol — when the plan doesn't match reality :**
+**Deviation protocol — when the plan doesn't match reality:**
 
 - Found a discrepancy → log it internally, adapt if minor, flag if architectural
 - If you deviate from the plan: note it explicitly in the PR under `## Adaptations` with the original intent and what you did instead
@@ -486,9 +486,9 @@ Run the project's standard checks (found in CLAUDE.md):
 - Test the specific behaviour described in the validation criteria
 - Check for obvious regressions in adjacent features
 
-Write tests before running the gate — each checkbox in the enrichment plan's "Validation Criteria" maps to a test. See `test-discipline.md` (trunk) and `test-discipline-${STACK}.md` (enrichment) for patterns.
+Write tests before running the gate — each checkbox in the enrichment plan's "Validation criteria" maps to a test. See `test-discipline.md` (trunk) and `test-discipline-${STACK}.md` (enrichment) for patterns.
 
-**Local gate — command per stack (from `ci-discipline.md`):**
+**Local gate — command by stack (from `ci-discipline.md`):**
 
 ```bash
 # python
@@ -504,7 +504,7 @@ GATE_CMD="go test ./... -cover"
 GATE_OUTPUT=$($GATE_CMD 2>&1)
 GATE_EXIT=$?
 
-# Parse results per stack (full logic in test-discipline-{stack}.md)
+# Parse according to the stack (full logic in test-discipline-{stack}.md)
 # Expected variables: COLLECTED, PASSED, FAILED, SKIPPED
 
 _log "$RUN_ID" "dev" "$TICKET_N" "test_gate" "ok" \
@@ -528,11 +528,11 @@ Do not push until the gate is green.
 
 Read your own diff. For each file changed, verify each item:
 
-- [ ] **Clear intent?** Is the purpose of this change immediately obvious from the diff?
+- [ ] **Clear intention?** Is the purpose of this change immediately obvious from the diff?
 - [ ] **Edge cases covered?** Think: empty input, zero, nil/null, concurrent writes, network failure, auth missing.
 - [ ] **Error states handled?** Every failure returns a meaningful message and correct status — no swallowed exceptions, no empty catch blocks.
 - [ ] **PII exposed?** No user identifiers, email addresses, tokens, or internal paths visible in responses or logs.
-- [ ] **Tech debt introduced?** If yes: note it explicitly in the PR under `## Technical Debt`. Never introduce debt silently.
+- [ ] **Tech debt introduced?** If yes: note it explicitly in the PR under `## Technical debt`. Never introduce debt silently.
 - [ ] **Security checklist passed?** (see implement section)
 - [ ] **Observability added?** (see implement section)
 - [ ] **Each validation criterion has a test?** 1:1 mapping between enrichment plan checkboxes and test cases.
@@ -597,7 +597,7 @@ SHORT_NAME="<short-name>"
 git push -u origin "feat/ticket-${TICKET_N}-${SHORT_NAME}"
 PUSH_EXIT=$?
 if [ $PUSH_EXIT -ne 0 ]; then
-  echo "=== Diagnostic push ==="
+  echo "=== Push diagnostic ==="
   git remote -v
   git fetch origin "feat/ticket-${TICKET_N}-${SHORT_NAME}" 2>/dev/null \
     && git log HEAD..FETCH_HEAD --oneline \
@@ -633,7 +633,7 @@ PR_URL=$(gh pr create \
 ## Risks
 [Delete this section if none — security, perf, breaking changes introduced]
 
-## Technical Debt
+## Technical debt
 [Delete this section if none — shortcuts taken, known limitations, follow-up tickets needed]")
 
 PR_NUMBER=$(echo "$PR_URL" | grep -o '[0-9]*$')
@@ -676,7 +676,7 @@ The profile defines:
 - How to trigger the deploy (MCP, auto-push, or nothing)
 - How to obtain `PREVIEW_URL` (MCP direct, status checks, bot comment, or empty)
 
-After executing the profile, `PREVIEW_URL` is set or empty. If set, post it to the ticket:
+After executing the profile, `PREVIEW_URL` is filled or empty. If filled, post it on the ticket:
 
 ```bash
 [ -n "$PREVIEW_URL" ] && \
@@ -694,8 +694,8 @@ _log "$RUN_ID" "dev" "$TICKET_N" "deploy_preview" "ok" \
 Full logic in `ci-discipline.md`. Summary:
 
 ```bash
-# 1. Get PREVIEW_URL if not already set by step 5.6
-#    Railway  → already in PREVIEW_URL (provided by MCP)
+# 1. Obtain PREVIEW_URL if not yet filled by step 5.6
+#    Railway  → already in PREVIEW_URL (MCP provided it)
 #    Vercel   → extract from GitHub status checks (ci-discipline.md Vercel profile)
 #    Render   → poll render[bot] comment (ci-discipline.md Render profile)
 
@@ -704,7 +704,7 @@ Full logic in `ci-discipline.md`. Summary:
 
 # 3. smoke_test_routes() — curl each route, max 15s
 #    5xx or 404 on "/" → failure → PR comment + reset to to-dev
-#    Timeout / URL not found → warning logged, smoke skipped, flow continues
+#    URL not found timeout → warning logged, smoke skipped, flow continues
 
 # 4. Result in SMOKE_FAILED (0 = OK, >0 = reset to to-dev)
 ```
@@ -722,9 +722,9 @@ Documentation has two destinations and strict rules about what goes where. Do no
 
 | File | Location | Committed | Content |
 |------|----------|-----------|---------|
-| `CLAUDE.md` | Repo root | ✅ Yes | Architecture, patterns, constraints, key files, conventions — everything an agent needs to work on this project |
-| Memory files | `~/.claude/projects/<hash>/memory/*.md` | ❌ No | One-off decisions, trade-offs, accepted tech debt — too specific for CLAUDE.md |
-| `MEMORY.md` | `~/.claude/projects/<hash>/memory/MEMORY.md` | ❌ No | Index of memory files — one line per file |
+| `CLAUDE.md` | Repo root | Yes | Architecture, patterns, constraints, key files, conventions — everything an agent needs to know to work on this project |
+| Memory files | `~/.claude/projects/<hash>/memory/*.md` | No | One-off decisions, trade-offs, accepted technical debt — what is too specific for CLAUDE.md |
+| `MEMORY.md` | `~/.claude/projects/<hash>/memory/MEMORY.md` | No | Index of memory files — one line per file |
 
 Never create other documentation files. Never create `docs/`, `notes/`, or equivalent subdirectories.
 
@@ -733,18 +733,18 @@ Never create other documentation files. Never create `docs/`, `notes/`, or equiv
 Update the most relevant existing section — **do not create a new section** unless no existing section fits.
 
 | Signal | CLAUDE.md section to update |
-|--------|-----------------------------|
+|--------|------------------------------|
 | New structural module or file created | Architecture overview / key files |
 | New external dependency | Tech stack / dependencies |
 | Pattern established that other agents should follow | Patterns & conventions |
-| Constraint discovered ("X cannot do Y because Z") | Attention points / constraints |
-| Public endpoint or API added | Architecture / API |
+| Discovered constraint ("X cannot do Y because Z") | Key notes / constraints |
+| Endpoint or public API added | Architecture / API |
 
 **Do not touch CLAUDE.md for**: bug fixes, minor additions following an existing pattern, implementation details with no impact on future agents.
 
 #### 6b. What belongs in a memory file
 
-A memory file = a decision or fact that is not generalizable to the entire project but must be recalled in future sessions.
+A memory file = a decision or fact that is not generalizable to the whole project but must be recalled in future sessions.
 
 **Create a new file** only if no existing file covers the topic. Otherwise, **update the existing file**.
 
@@ -757,15 +757,15 @@ Memory file format:
 ```markdown
 ---
 name: <short name>
-description: <one line — used to judge relevance in future sessions>
+description: <one line — used to judge relevance in a future session>
 type: project
 ---
 
 <the fact or decision>
 
-**Why:** <reason for this choice>
+**Why:** <why this choice>
 
-**How to apply:** <when a future agent should take this into account>
+**How to apply:** <when a future agent needs to take this into account>
 ```
 
 Add or update the pointer in `MEMORY.md`:
@@ -925,7 +925,7 @@ if lf.exists():
 PYEOF
 
 _log "$RUN_ID" "dev" "$TICKET_N" "error" "error" \
-  "Erreur: <short description>" '{"phase":"<phase where it failed>"}'
+  "Error: <short description>" '{"phase":"<phase where it failed>"}'
 ```
 
 Then reset the ticket:
