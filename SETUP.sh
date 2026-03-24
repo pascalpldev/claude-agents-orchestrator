@@ -57,6 +57,7 @@ gh label create "to-test" --color "ffa500" --force 2>/dev/null || true
 gh label create "deployed" --color "32cd32" --force 2>/dev/null || true
 gh label create "godeploy" --color "9370db" --force 2>/dev/null || true
 gh label create "autonomous" --color "ff4500" --force 2>/dev/null || true
+gh label create "copilot-review-pending" --color "0075ca" --force 2>/dev/null || true
 echo -e "${GREEN}✅ Labels created${NC}"
 
 # 2. Create branches

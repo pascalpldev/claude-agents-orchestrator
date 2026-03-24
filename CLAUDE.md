@@ -72,6 +72,7 @@ gh issue create --title "Feature: ..." --label "to-enrich"
 | `enriched` | Plan proposed, waiting for your validation |
 | `to-dev` | Validated, ready to implement |
 | `dev-in-progress` | Dev persona running (locked) |
+| `copilot-review-pending` | Waiting for Copilot review — dev will auto-fix if changes requested |
 | `to-test` | Code ready, preview URL posted, ready for testing |
 | `deployed` | Merged to dev branch |
 | `godeploy` | Signal: merge and deploy to production |

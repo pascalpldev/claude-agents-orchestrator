@@ -311,12 +311,20 @@ Three modes — detect in this order:
          "feedback mode detected" "{\"branch\":\"$EXISTING_BRANCH\"}"
 
   1. git checkout -b "$EXISTING_BRANCH" --track "origin/$EXISTING_BRANCH"
-  2. Read ALL comments after the last "PR ready:" comment — extract user feedback
+  2. Read ALL comments after the last "PR ready:" comment (issue) — extract user feedback
+     Also fetch PR review threads:
+     ```bash
+     gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews
+     gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments
+     ```
+     Build a unified feedback list from both sources (issue comments + PR review threads).
   3. Build a targeted fix plan: list each feedback point explicitly
      - Do NOT redo what is already working
      - Do NOT modify files outside the feedback scope
   4. Skip step 2 (branch already exists) — go directly to step 3 (targeted fixes only)
   5. At step 5: update the EXISTING PR (gh pr edit) — do NOT create a new one
+  6. After pushing fixes: re-request Copilot review + reset label to `copilot-review-pending`
+     (Copilot auto-reviews on push — `cao-process-tickets` will poll the result again)
 ```
 
 **Mode B — resume-crash** : `LAST_MILESTONE` is non-empty AND `EXISTING_BRANCH` found AND no "PR ready:" comment exists.
@@ -644,11 +652,32 @@ _log "$RUN_ID" "dev" "$TICKET_N" "pr_created" "ok" \
   "PR created" "{\"pr_number\":$PR_NUMBER}"
 ```
 
+### 5.1. Request Copilot review
+
+After the PR is created, request a Copilot review and set the `copilot-review-pending` label. This label signals `cao-process-tickets` to poll for the review result and act autonomously.
+
+```bash
+COPILOT_REVIEW_REQUESTED=false
+
+# Attempt to request Copilot review via GitHub MCP
+# mcp__plugin_github_github__request_copilot_review(owner, repo, pull_number)
+# On success:
+gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
+  --remove-label "dev-in-progress" --add-label "copilot-review-pending" \
+  2>/dev/null && COPILOT_REVIEW_REQUESTED=true
+
+_log "$RUN_ID" "dev" "$TICKET_N" "copilot_review_requested" "ok" \
+  "Copilot review requested" "{\"pr_number\":$PR_NUMBER,\"requested\":$COPILOT_REVIEW_REQUESTED}"
+```
+
+If the MCP call fails (Copilot not available on this repo): skip silently, set `COPILOT_REVIEW_REQUESTED=false`, and continue to step 7 which will set `to-test` directly.
+
 ```bash
 _milestone "Fabrication — PR Created" \
   "- Branch pushed: feat/ticket-${TICKET_N}-${SHORT_NAME}
-- PR #${PR_NUMBER} opened: ${PR_URL}" \
-  "Wait for CI, then deploy preview if Railway configured"
+- PR #${PR_NUMBER} opened: ${PR_URL}
+- Copilot review requested: ${COPILOT_REVIEW_REQUESTED}" \
+  "Waiting for Copilot review (cao-process-tickets will poll)"
 ```
 
 ### 5.5. Wait for CI (optional — skip if no GitHub Actions configured)
@@ -793,9 +822,15 @@ _log "$RUN_ID" "dev" "$TICKET_N" "docs_committed" "ok" \
 
 ### 7. Update ticket state
 
+If `COPILOT_REVIEW_REQUESTED=true` — label already set to `copilot-review-pending` in step 5.1. Skip the label update, just post the "PR ready" comment.
+
+If `COPILOT_REVIEW_REQUESTED=false` — set `to-test` now (Copilot unavailable, human takes over).
+
 ```bash
-gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
-  --remove-label "dev-in-progress" --add-label "to-test"
+if [ "$COPILOT_REVIEW_REQUESTED" = "false" ]; then
+  gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
+    --remove-label "dev-in-progress" --add-label "to-test"
+fi
 
 gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
   --body "PR ready: ${PR_URL}
@@ -817,8 +852,9 @@ if lf.exists():
         except ProcessLookupError: pass
 PYEOF
 
+FINAL_LABEL=$([ "$COPILOT_REVIEW_REQUESTED" = "true" ] && echo "copilot-review-pending" || echo "to-test")
 _log "$RUN_ID" "dev" "$TICKET_N" "label_updated" "ok" \
-  "label updated" '{"from":"dev-in-progress","to":"to-test"}'
+  "label updated" "{\"from\":\"dev-in-progress\",\"to\":\"$FINAL_LABEL\"}"
 
 _log "$RUN_ID" "dev" "$TICKET_N" "end" "success" \
   "implementation complete" "{\"duration_s\":$(( $(date +%s) - _AGENT_START )),\"pr_number\":$PR_NUMBER}"

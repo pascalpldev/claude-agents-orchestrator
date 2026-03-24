@@ -71,9 +71,9 @@ Run only the workflows matching ROLE:
 
 | ROLE | Workflows to run |
 |------|-----------------|
-| `all` | 1 + 2 + 3 |
+| `all` | 1 + 2 + 3 + 4 |
 | `chief-builder` | 1 only |
-| `dev` | 2 + 3 |
+| `dev` | 2 + 3 + 4 |
 
 ### 1. Enrichment workflow (chief-builder)
 
@@ -122,6 +122,55 @@ b. Fixes, commits, changes label → to-test
 
 Skip if ROLE = "chief-builder".
 
+### 4. Copilot review workflow (dev)
+
+Skip if ROLE = "chief-builder".
+
+**Detects**: `copilot-review-pending` label + no assignee
+
+```bash
+# Find the PR for this ticket
+PR_NUMBER=$(gh pr list \
+  --repo "$OWNER/$REPO" \
+  --search "Closes #${TICKET_N}" \
+  --state open \
+  --json number \
+  --jq '.[0].number // empty')
+
+# Fetch latest Copilot review state
+REVIEW_STATE=$(gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews \
+  --jq '[.[] | select(.user.login == "copilot-pull-request-reviewer")] | last | .state // "PENDING"')
+```
+
+**Decision table:**
+
+| `REVIEW_STATE` | Action |
+|----------------|--------|
+| `APPROVED` | Remove `copilot-review-pending`, add `to-test` |
+| `CHANGES_REQUESTED` | Check iteration count → if ≤ 3: remove `copilot-review-pending`, add `to-dev` (dev picks up in feedback-iteration mode) |
+| `CHANGES_REQUESTED` + iteration > 3 | Remove `copilot-review-pending`, add `to-test`, post warning comment |
+| `PENDING` / `COMMENTED` / null | Skip — poll again next cycle |
+
+**Iteration count**: count existing "Copilot review requested" log entries on the ticket comments. Each dev session in feedback-iteration mode increments this when it re-requests the review.
+
+```
+a. Fetch REVIEW_STATE
+b. If APPROVED:
+   gh issue edit N --remove-label "copilot-review-pending" --add-label "to-test"
+   → human testing gate
+
+c. If CHANGES_REQUESTED + iterations ≤ 3:
+   gh issue edit N --remove-label "copilot-review-pending" --add-label "to-dev"
+   → dev agent auto-launches (feedback-iteration mode, reads PR review threads)
+
+d. If CHANGES_REQUESTED + iterations > 3:
+   gh issue edit N --remove-label "copilot-review-pending" --add-label "to-test"
+   gh issue comment N --body "⚠️ Copilot review unresolved after 3 iterations — human review needed.\nPR: <url>"
+   → human takes over
+
+e. If PENDING/COMMENTED: skip this cycle
+```
+
 **Detects**: `godeploy` label on `to-test` ticket
 
 ```
@@ -141,6 +190,7 @@ Always output a brief summary:
 ```
 ✅ Processed: [list of tickets handled, or "nothing to process"]
 ⏭️  Skipped (locked): [tickets in enriching/dev-in-progress, if any]
+⏳ Awaiting Copilot review: [tickets in copilot-review-pending, if any]
 ```
 
 ### Loop scheduling — drain then sleep
