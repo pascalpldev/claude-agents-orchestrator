@@ -328,6 +328,10 @@ See the kit's documentation for how to use the automation.
 
 ---
 
+## Language
+
+**All code, comments, agent behaviors, skill files, commit messages, PR descriptions, and issue content must be written in English.** This applies to every file in the repository — no exceptions.
+
 ## Contributing
 
 Issues, PRs welcome. This kit is meant to evolve.
