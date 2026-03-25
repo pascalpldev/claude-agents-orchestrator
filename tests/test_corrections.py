@@ -150,3 +150,50 @@ def test_status_column_has_check_constraint(tmp_path):
         conn.commit()
 
     conn.close()
+
+
+def test_generate_id_basic():
+    from lib.corrections import generate_id
+    # chief-builder, project instavid, ticket 7, rule about rate limits
+    # "ratelimit" is a single token — slugify picks it as the first non-stop keyword
+    id_ = generate_id("chief-builder", "instavid", "7", "always check ratelimit before API design")
+    assert id_ == "cb_instavid_7_ratelimit"
+
+
+def test_generate_id_star_agent():
+    from lib.corrections import generate_id
+    # "first" is the first non-stop word (ask/who are stop words)
+    id_ = generate_id("*", "global", "manual", "ask who the first user is")
+    assert id_ == "all_global_manual_first"
+
+
+def test_generate_id_strips_stopwords():
+    from lib.corrections import generate_id
+    id_ = generate_id("dev", "myapp", "12", "always verify the migration exists")
+    assert id_ == "dev_myapp_12_migration"
+
+
+def test_generate_id_max_lengths():
+    from lib.corrections import generate_id
+    id_ = generate_id("chief-builder", "averylongprojectname", "42", "superlongkeywordthatexceedslimit")
+    parts = id_.split("_")
+    assert len(parts[1]) <= 12  # project slug
+    assert len(parts[3]) <= 12  # keyword
+
+
+def test_generate_id_collision(tmp_path):
+    import sqlite3
+    from lib.corrections import generate_id, init_db
+    db = tmp_path / "test.db"
+    init_db(db)
+    conn = sqlite3.connect(str(db))
+    base = generate_id("dev", "proj", "1", "check migration")
+    conn.execute(
+        "INSERT INTO corrections (id, agent, class, gap, rule, status, created_at, updated_at) "
+        "VALUES (?, 'dev', 'general', 'gap', 'rule', 'active', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        (base,)
+    )
+    conn.commit()
+    conn.close()
+    id2 = generate_id("dev", "proj", "1", "check migration", db_path=db)
+    assert id2 == base + "_2"

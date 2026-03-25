@@ -14,6 +14,7 @@ import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS corrections (
@@ -54,6 +55,47 @@ _AGENT_PREFIX = {
 def _now() -> str:
     """Return current UTC timestamp in ISO 8601 format."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _slugify_keyword(text: str) -> str:
+    """Extract first meaningful word from rule text, max 12 chars."""
+    words = re.sub(r"[^a-z0-9\s]", "", text.lower()).split()
+    for word in words:
+        if word not in _STOP_WORDS and len(word) >= 3:
+            return word[:12]
+    return words[0][:12] if words else "misc"
+
+
+def generate_id(
+    agent: str,
+    project: str,
+    ticket: str,
+    rule: str,
+    db_path: Optional[Path] = None,
+) -> str:
+    """Generate a unique correction ID."""
+    prefix = _AGENT_PREFIX.get(agent, agent[:4])
+    proj = re.sub(r"[^a-z0-9]", "", project.lower().split("-")[-1])[:12] or "proj"
+    tkt = re.sub(r"[^a-z0-9]", "", str(ticket).lower()) or "manual"
+    keyword = _slugify_keyword(rule)
+
+    base = f"{prefix}_{proj}_{tkt}_{keyword}"
+    if db_path is None:
+        return base
+
+    # Collision resolution
+    candidate = base
+    suffix = 2
+    conn = sqlite3.connect(str(db_path))
+    try:
+        while conn.execute(
+            "SELECT 1 FROM corrections WHERE id = ?", (candidate,)
+        ).fetchone():
+            candidate = f"{base}_{suffix}"
+            suffix += 1
+    finally:
+        conn.close()
+    return candidate
 
 
 def init_db(db_path: Path) -> None:
