@@ -148,6 +148,19 @@ gh issue view "$TICKET_N" --repo "$OWNER/$REPO" \
 
 Read CLAUDE.md at project root. Read key source files mentioned in CLAUDE.md.
 
+**Load accumulated learnings** (if files exist — skip silently if absent):
+
+```bash
+PROJECT_SLUG=$(pwd | tr '/' '-')
+PROJECT_PATTERNS="$HOME/.claude/projects/${PROJECT_SLUG}/memory/enrichment-patterns.md"
+GLOBAL_METHODOLOGY="$HOME/.claude/memory/chief-builder-methodology.md"
+
+[ -f "$PROJECT_PATTERNS" ]    && cat "$PROJECT_PATTERNS"
+[ -f "$GLOBAL_METHODOLOGY" ]  && cat "$GLOBAL_METHODOLOGY"
+```
+
+Apply these learnings as additional constraints during deliberation — they represent corrections made in past sessions for this project or methodology gaps identified globally.
+
 **Detect run mode:**
 - No comments → first run → step 2
 - Clarification posted by agent + user response → clarification in progress → step 2 (with response as context)
@@ -531,6 +544,84 @@ COMMENT
 
 Update the state (step 4) — re-evaluate auto-promote criteria.
 
+### 5.1 Meta-learning after feedback iteration
+
+After addressing feedback and updating the enrichment, extract and persist what was learned.
+
+**Only runs when feedback was substantive** — a typo fix or cosmetic reword does not trigger this.
+
+#### Step 1 — Classify the delta
+
+Read the original plan and the feedback. Ask: what was underspecified, wrong, or missing?
+
+| Class | Description | Examples |
+|-------|-------------|---------|
+| `ticket-specific` | Particular to this ticket's domain — won't recur | "Use the existing `UserService` instead of creating a new one" |
+| `project-pattern` | Systematic gap about this project's context, stack, or conventions | "Always check our rate-limiting rules before designing any API endpoint" |
+| `general` | Gap in the enrichment methodology itself — applies across all projects | "Always ask: who is the first user of this feature — internal or external?" |
+
+Ticket-specific learnings → **discard** (no memory write needed).
+
+#### Step 2 — Save project-pattern learnings
+
+For each `project-pattern` learning, read the project memory file if it exists, then append:
+
+```bash
+MEMORY_DIR="$HOME/.claude/projects/$(pwd | tr '/' '-')/memory"
+PATTERNS_FILE="$MEMORY_DIR/enrichment-patterns.md"
+
+# Read existing file or initialize
+if [ -f "$PATTERNS_FILE" ]; then
+  # Append to existing
+  cat >> "$PATTERNS_FILE" << PATTERN
+
+## [$(date +%Y-%m-%d)] Learned from ticket #$TICKET_N
+
+**Gap**: [what was missing from the original enrichment]
+**Correction**: [what the user clarified or added]
+**Rule**: [1-sentence rule to apply to future enrichments of this project]
+PATTERN
+else
+  cat > "$PATTERNS_FILE" << PATTERN
+---
+name: enrichment-patterns
+description: Project-specific patterns learned from feedback on enrichments — apply to all future chief-builder sessions
+type: project
+---
+
+## [$(date +%Y-%m-%d)] Learned from ticket #$TICKET_N
+
+**Gap**: [what was missing from the original enrichment]
+**Correction**: [what the user clarified or added]
+**Rule**: [1-sentence rule to apply to future enrichments of this project]
+PATTERN
+fi
+```
+
+Also update `$MEMORY_DIR/MEMORY.md` to reference the file if not already listed.
+
+#### Step 3 — Save general learnings (rare)
+
+Only if the gap reveals a flaw in the enrichment methodology itself (not project-specific).
+
+```bash
+GLOBAL_MEMORY="$HOME/.claude/memory"
+mkdir -p "$GLOBAL_MEMORY"
+METHODOLOGY_FILE="$GLOBAL_MEMORY/chief-builder-methodology.md"
+```
+
+Append to `$METHODOLOGY_FILE` using the same format as project-pattern learnings.
+Do not write general learnings for every iteration — only when the gap is clearly systematic
+(e.g., "I consistently miss rate-limiting analysis on any API ticket, not just this project").
+
+#### Step 4 — Log
+
+```bash
+_log "$RUN_ID" "chief-builder" "$TICKET_N" "meta_learning" "ok" \
+  "patterns persisted after feedback" \
+  "{\"class\":\"project-pattern\",\"file\":\"enrichment-patterns.md\"}"
+```
+
 ---
 
 ## Behaviors reference
@@ -582,6 +673,7 @@ Chief-builder detects `@architect-needed:` in the last comment, reads only that 
 
 - Context clear → reset label to `to-dev` immediately (no human gate — dev resumes on next cycle)
 - Human decision required → post `@human-needed: ...` → stop (human resets to `to-enrich` after answering)
+- **3 back & forth max** — count `@architect-needed:` comments on the ticket. At 3 unresolved exchanges, OR as soon as either agent considers it unresolvable: escalate to ticket author, reset to `to-enrich`, assign to author.
 
 ---
 
