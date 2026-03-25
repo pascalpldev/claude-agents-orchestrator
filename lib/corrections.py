@@ -374,3 +374,123 @@ def parse_and_save(
         results.append(f"SAVED {id_}")
 
     return results
+
+
+def _main():
+    parser = argparse.ArgumentParser(prog="corrections.py")
+    sub = parser.add_subparsers(dest="cmd")
+
+    # load
+    p = sub.add_parser("load")
+    p.add_argument("--agent", required=True)
+    p.add_argument("--project-db", required=True)
+    p.add_argument("--global-db", required=True)
+
+    # add
+    p = sub.add_parser("add")
+    p.add_argument("--agent", required=True)
+    p.add_argument("--class", dest="cls", required=True)
+    p.add_argument("--gap", required=True)
+    p.add_argument("--rule", required=True)
+    p.add_argument("--db", required=True)
+    p.add_argument("--project-slug", default="unknown")
+    p.add_argument("--source")
+    p.add_argument("--source-comment-id")
+    p.add_argument("--target-hint")
+
+    # parse-and-save
+    p = sub.add_parser("parse-and-save")
+    p.add_argument("--comments", required=True)
+    p.add_argument("--agent", required=True)
+    p.add_argument("--source", required=True)
+    p.add_argument("--project-slug", required=True)
+    p.add_argument("--project-db", required=True)
+    p.add_argument("--global-db", required=True)
+
+    # update
+    p = sub.add_parser("update")
+    p.add_argument("id")
+    p.add_argument("--status")
+    p.add_argument("--integrated-commit")
+    p.add_argument("--integrated-file")
+    p.add_argument("--db", required=True)
+
+    # get
+    p = sub.add_parser("get")
+    p.add_argument("id")
+    p.add_argument("--db", required=True)
+
+    # list
+    p = sub.add_parser("list")
+    p.add_argument("--agent")
+    p.add_argument("--status")
+    p.add_argument("--db", required=True)
+
+    args = parser.parse_args()
+
+    if args.cmd == "load":
+        result = load_corrections(
+            args.agent, Path(args.project_db), Path(args.global_db)
+        )
+        print(result, end="")
+        sys.exit(0)
+
+    elif args.cmd == "add":
+        id_ = add_correction(
+            db_path=Path(args.db),
+            agent=args.agent,
+            cls=args.cls,
+            gap=args.gap,
+            rule=args.rule,
+            project_slug=args.project_slug,
+            source=args.source,
+            source_comment_id=args.source_comment_id,
+            target_hint=args.target_hint,
+        )
+        print(id_)
+        sys.exit(0)
+
+    elif args.cmd == "parse-and-save":
+        comments = json.loads(args.comments)
+        results = parse_and_save(
+            comments, args.agent, args.source, args.project_slug,
+            Path(args.project_db), Path(args.global_db)
+        )
+        for line in results:
+            print(line)
+        sys.exit(0)
+
+    elif args.cmd == "update":
+        try:
+            update_correction(
+                Path(args.db), args.id,
+                status=args.status,
+                integrated_commit=args.integrated_commit,
+                integrated_file=args.integrated_file,
+            )
+            sys.exit(0)
+        except ValueError as e:
+            print(str(e), file=sys.stderr)
+            sys.exit(1)
+
+    elif args.cmd == "get":
+        row = get_correction(Path(args.db), args.id)
+        if row is None:
+            sys.exit(1)
+        print(json.dumps(row, indent=2))
+        sys.exit(0)
+
+    elif args.cmd == "list":
+        rows = list_corrections(
+            Path(args.db), agent=args.agent, status=args.status
+        )
+        print(json.dumps(rows, indent=2))
+        sys.exit(0)
+
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    _main()
