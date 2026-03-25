@@ -209,3 +209,46 @@ def test_generate_id_fallback_with_short_words():
     from lib.corrections import generate_id
     id_ = generate_id("dev", "proj", "1", "ab cd ef")
     assert id_.endswith("_misc"), f"Expected 'misc' keyword, got {id_}"
+
+
+def test_add_correction_returns_id(tmp_path):
+    from lib.corrections import init_db, add_correction
+    db = tmp_path / "test.db"
+    init_db(db)
+    id_ = add_correction(
+        db_path=db,
+        agent="chief-builder",
+        cls="project-pattern",
+        gap="rate limits not checked",
+        rule="always check ratelimit before API design",
+        project_slug="instavid",
+        ticket="7",
+    )
+    assert id_ == "cb_instavid_7_ratelimit"
+
+
+def test_add_correction_stored_in_db(tmp_path):
+    from lib.corrections import init_db, add_correction, get_correction
+    db = tmp_path / "test.db"
+    init_db(db)
+    id_ = add_correction(db, "dev", "general", "gap", "always verify migration", "myapp", "manual")
+    row = get_correction(db, id_)
+    assert row is not None
+    assert row["status"] == "active"
+    assert row["agent"] == "dev"
+    assert row["class"] == "general"
+
+
+def test_add_correction_invalid_class_raises(tmp_path):
+    from lib.corrections import init_db, add_correction
+    db = tmp_path / "test.db"
+    init_db(db)
+    with pytest.raises(Exception):
+        add_correction(db, "dev", "invalid-class", "gap", "rule", "proj", "1")
+
+
+def test_get_correction_missing_returns_none(tmp_path):
+    from lib.corrections import init_db, get_correction
+    db = tmp_path / "test.db"
+    init_db(db)
+    assert get_correction(db, "nonexistent") is None

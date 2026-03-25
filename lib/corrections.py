@@ -106,3 +106,51 @@ def init_db(db_path: Path) -> None:
     conn.execute(SCHEMA)
     conn.commit()
     conn.close()
+
+
+def add_correction(
+    db_path: Path,
+    agent: str,
+    cls: str,
+    gap: str,
+    rule: str,
+    project_slug: str,
+    ticket: str = "manual",
+    source: Optional[str] = None,
+    source_comment_id: Optional[str] = None,
+    target_hint: Optional[str] = None,
+) -> str:
+    """Insert a correction. Returns the generated ID."""
+    db_path = Path(db_path)
+    init_db(db_path)
+    id_ = generate_id(agent, project_slug, ticket, rule, db_path=db_path)
+    now = _now()
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute(
+            """INSERT INTO corrections
+               (id, agent, class, gap, rule, source, source_comment_id,
+                status, target_hint, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)""",
+            (id_, agent, cls, gap, rule, source, source_comment_id, target_hint, now, now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return id_
+
+
+def get_correction(db_path: Path, id_: str) -> Optional[dict]:
+    """Return correction as dict or None if not found."""
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return None
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            "SELECT * FROM corrections WHERE id = ?", (id_,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
