@@ -132,8 +132,10 @@ Short form (agent inferred from ticket context):
 **Agent behavior on detection:**
 1. Extracts `gap`, `rule`, `agent` (inferred if absent), `class` (inferred from rule specificity)
 2. Checks `source_comment_id` for deduplication — skips silently if already saved
-3. Inserts into appropriate DB (project vs global based on `class`)
-4. Posts confirmation comment:
+3. Inserts into appropriate DB with `status: active` (project vs global based on `class`)
+4. Cross-checks the new rule against loaded core behavior files (agent reads them semantically)
+5. If conflict detected with a core rule → `corrections.py update <id> --status inactive`, post conflict alert (see below)
+6. If no conflict → post confirmation comment:
 
 ```
 Correction saved [#cb_instavid_7_ratelimit]
@@ -141,6 +143,20 @@ Rule: "always check instavid API rate limits before any endpoint design"
 Agent: chief-builder | Scope: project-pattern | Status: active
 To promote to core: /cao-corrections promote cb_instavid_7_ratelimit
 ```
+
+**Conflict alert comment (step 5):**
+
+```
+[cao-corrections] Correction #cb_instavid_7_ratelimit saved but set to INACTIVE.
+Conflict detected with core rule in agents/behaviors/yagni.md:
+  Core rule:  "<extracted rule from the file>"
+  Correction: "<rule from @cao-learn>"
+
+To override the core rule and activate: /cao-corrections activate cb_instavid_7_ratelimit
+To integrate and resolve the conflict:  /cao-corrections promote cb_instavid_7_ratelimit
+```
+
+The conflict check is performed by the **agent** (not by `corrections.py`) because detecting semantic contradiction requires reading and understanding behavior file content. `corrections.py` only exposes the `update --status` command used to deactivate the correction.
 
 **`agent` inference rules:**
 - Rule references project-specific details (service names, stack, conventions) → `agent` = triggering agent, `class` = `project-pattern`
