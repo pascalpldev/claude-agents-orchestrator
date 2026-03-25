@@ -60,6 +60,12 @@ gh label create "autonomous" --color "ff4500" --force 2>/dev/null || true
 gh label create "copilot-review-pending" --color "0075ca" --force 2>/dev/null || true
 echo -e "${GREEN}✅ Labels created${NC}"
 
+# 1.5. Behavioral corrections DB
+echo -e "${BLUE}Behavioral corrections DB${NC}"
+echo "~/.claude/projects/<slug>/cao.db is created automatically on first agent run"
+echo "No explicit initialization needed here"
+echo -e "${GREEN}✅ Ready${NC}"
+
 # 2. Create branches
 echo -e "${BLUE}Creating branches...${NC}"
 git checkout -b dev 2>/dev/null || git checkout dev
