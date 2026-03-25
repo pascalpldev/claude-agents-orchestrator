@@ -659,18 +659,20 @@ After the PR is created, request a Copilot review and set the `copilot-review-pe
 ```bash
 COPILOT_REVIEW_REQUESTED=false
 
+# Ensure copilot-review-pending label exists in this repo (idempotent)
+gh label create "copilot-review-pending" --color "0075ca" \
+  --repo "$OWNER/$REPO" 2>/dev/null || true
+
 # Attempt to request Copilot review via GitHub MCP
 # mcp__plugin_github_github__request_copilot_review(owner, repo, pull_number)
-# On success:
-gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
-  --remove-label "dev-in-progress" --add-label "copilot-review-pending" \
-  2>/dev/null && COPILOT_REVIEW_REQUESTED=true
+# On success: set COPILOT_REVIEW_REQUESTED=true
+# On failure (Copilot unavailable): COPILOT_REVIEW_REQUESTED stays false
 
 _log "$RUN_ID" "dev" "$TICKET_N" "copilot_review_requested" "ok" \
   "Copilot review requested" "{\"pr_number\":$PR_NUMBER,\"requested\":$COPILOT_REVIEW_REQUESTED}"
 ```
 
-If the MCP call fails (Copilot not available on this repo): skip silently, set `COPILOT_REVIEW_REQUESTED=false`, and continue to step 7 which will set `to-test` directly.
+Do NOT update the label here. Label transition always happens in step 7 — never split across steps.
 
 ```bash
 _milestone "Fabrication — PR Created" \
@@ -827,9 +829,19 @@ If `COPILOT_REVIEW_REQUESTED=true` — label already set to `copilot-review-pend
 If `COPILOT_REVIEW_REQUESTED=false` — set `to-test` now (Copilot unavailable, human takes over).
 
 ```bash
-if [ "$COPILOT_REVIEW_REQUESTED" = "false" ]; then
+# Always remove dev-in-progress first — independently of what comes next
+gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
+  --remove-label "dev-in-progress" 2>/dev/null || true
+
+# Then add the target label — separate command, never combined with remove
+if [ "$COPILOT_REVIEW_REQUESTED" = "true" ]; then
   gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
-    --remove-label "dev-in-progress" --add-label "to-test"
+    --add-label "copilot-review-pending" 2>/dev/null || \
+  gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
+    --add-label "to-test"  # fallback if label creation failed for some reason
+else
+  gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
+    --add-label "to-test"
 fi
 ```
 
