@@ -63,7 +63,7 @@ def _slugify_keyword(text: str) -> str:
     for word in words:
         if word not in _STOP_WORDS and len(word) >= 3:
             return word[:12]
-    return words[0][:12] if words else "misc"
+    return "misc"
 
 
 def generate_id(

@@ -197,3 +197,15 @@ def test_generate_id_collision(tmp_path):
     conn.close()
     id2 = generate_id("dev", "proj", "1", "check migration", db_path=db)
     assert id2 == base + "_2"
+
+
+def test_generate_id_fallback_with_all_stopwords():
+    from lib.corrections import generate_id
+    id_ = generate_id("dev", "proj", "1", "the a or for")
+    assert id_.endswith("_misc"), f"Expected 'misc' keyword, got {id_}"
+
+
+def test_generate_id_fallback_with_short_words():
+    from lib.corrections import generate_id
+    id_ = generate_id("dev", "proj", "1", "ab cd ef")
+    assert id_.endswith("_misc"), f"Expected 'misc' keyword, got {id_}"
