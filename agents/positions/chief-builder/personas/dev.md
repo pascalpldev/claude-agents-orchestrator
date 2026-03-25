@@ -59,6 +59,22 @@ _log() { [ -n "${_LOG}" ] && python3 "$_LOG" "$@" || true; }
 
 _log "$RUN_ID" "dev" "$TICKET_N" "start" "started" \
   "ticket #${TICKET_N} — ${TICKET_TITLE}" '{"trigger":"dev"}'
+
+# Load active behavioral corrections
+_CORRECTIONS_LIB=""
+for _p in ".claude-workflow/lib/corrections.py" "lib/corrections.py"; do
+  [ -f "${_REPO_ROOT}/$_p" ] && _CORRECTIONS_LIB="${_REPO_ROOT}/$_p" && break
+done
+
+CORRECTIONS_BLOCK=""
+if [ -n "$_CORRECTIONS_LIB" ]; then
+  PROJECT_SLUG=$(pwd | tr '/' '-')
+  CORRECTIONS_BLOCK=$(python3 "$_CORRECTIONS_LIB" load \
+    --agent "dev" \
+    --project-db "$HOME/.claude/projects/${PROJECT_SLUG}/cao.db" \
+    --global-db  "$HOME/.claude/cao.db")
+fi
+# If CORRECTIONS_BLOCK is non-empty, apply as implementation constraints
 ```
 
 ### 0.1. Milestone protocol + kill sentinel
@@ -289,6 +305,28 @@ Using OWNER and REPO detected in step 0.0, read in this order:
 3. **The enrichment plan** — extract from issue comments (the `## Enrichment plan` comment)
 
 4. **Only the files mentioned in the plan** — do not explore beyond that
+
+**Detect and save `@cao-learn` tags from ticket comments:**
+
+```bash
+if [ -n "$_CORRECTIONS_LIB" ]; then
+  LEARN_COMMENTS=$(gh issue view "$TICKET_N" --repo "$OWNER/$REPO" \
+    --json comments \
+    --jq '[.comments[] | select(.body | contains("@cao-learn"))]')
+
+  if [ -n "$LEARN_COMMENTS" ] && [ "$LEARN_COMMENTS" != "[]" ]; then
+    python3 "$_CORRECTIONS_LIB" parse-and-save \
+      --comments "$LEARN_COMMENTS" \
+      --agent "dev" \
+      --source "$OWNER/$REPO#$TICKET_N" \
+      --project-slug "$(basename "$(pwd)")" \
+      --project-db "$HOME/.claude/projects/${PROJECT_SLUG}/cao.db" \
+      --global-db  "$HOME/.claude/cao.db"
+    # Note: conflict check vs core behaviors and confirmation comments
+    # follow the same pattern as chief-builder (see agent.md step 1)
+  fi
+fi
+```
 
 **Detect resume mode** — scan comments for `🔖 Milestone` entries and check remote branch:
 
