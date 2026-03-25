@@ -154,3 +154,87 @@ def get_correction(db_path: Path, id_: str) -> Optional[dict]:
         return dict(row) if row else None
     finally:
         conn.close()
+
+
+def update_correction(
+    db_path: Path,
+    id_: str,
+    status: Optional[str] = None,
+    integrated_commit: Optional[str] = None,
+    integrated_file: Optional[str] = None,
+) -> None:
+    """Update one or more fields of a correction. Raises ValueError if not found."""
+    db_path = Path(db_path)
+    sets, params = [], []
+    if status is not None:
+        sets.append("status = ?")
+        params.append(status)
+    if integrated_commit is not None:
+        sets.append("integrated_commit = ?")
+        params.append(integrated_commit)
+    if integrated_file is not None:
+        sets.append("integrated_file = ?")
+        params.append(integrated_file)
+    if not sets:
+        return
+    sets.append("updated_at = ?")
+    params.append(_now())
+    params.append(id_)
+    conn = sqlite3.connect(str(db_path))
+    try:
+        cursor = conn.execute(
+            f"UPDATE corrections SET {', '.join(sets)} WHERE id = ?", params
+        )
+        conn.commit()
+        if cursor.rowcount == 0:
+            raise ValueError(f"Correction not found: {id_}")
+    finally:
+        conn.close()
+
+
+def update_status(db_path: Path, id_: str, status: str) -> None:
+    """Update status of a correction. Raises ValueError if not found."""
+    update_correction(db_path, id_, status=status)
+
+
+def list_corrections(
+    db_path: Path,
+    agent: Optional[str] = None,
+    status: Optional[str] = None,
+) -> list:
+    """Return corrections matching filters as list of dicts."""
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return []
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        conditions, params = [], []
+        if agent and agent != "*":
+            conditions.append("agent IN (?, '*')")
+            params.append(agent)
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        rows = conn.execute(
+            f"SELECT * FROM corrections {where} ORDER BY created_at DESC", params
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def comment_already_saved(db_path: Path, comment_id: str) -> bool:
+    """Return True if this GitHub comment ID is already in the DB."""
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return False
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM corrections WHERE source_comment_id = ?", (comment_id,)
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()

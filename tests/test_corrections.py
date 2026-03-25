@@ -252,3 +252,72 @@ def test_get_correction_missing_returns_none(tmp_path):
     db = tmp_path / "test.db"
     init_db(db)
     assert get_correction(db, "nonexistent") is None
+
+
+def test_update_status(tmp_path):
+    from lib.corrections import init_db, add_correction, update_status, get_correction
+    db = tmp_path / "test.db"
+    init_db(db)
+    id_ = add_correction(db, "dev", "general", "gap", "rule about migration", "proj", "1")
+    update_status(db, id_, "inactive")
+    row = get_correction(db, id_)
+    assert row["status"] == "inactive"
+
+
+def test_update_status_missing_raises(tmp_path):
+    from lib.corrections import init_db, update_status
+    db = tmp_path / "test.db"
+    init_db(db)
+    with pytest.raises(ValueError):
+        update_status(db, "nonexistent", "inactive")
+
+
+def test_update_correction_multi_field(tmp_path):
+    from lib.corrections import init_db, add_correction, update_correction, get_correction
+    db = tmp_path / "test.db"
+    init_db(db)
+    id_ = add_correction(db, "dev", "general", "gap", "rule about migration", "proj", "1")
+    update_correction(db, id_, status="integrated",
+                      integrated_commit="abc123", integrated_file="agents/behaviors/yagni.md")
+    row = get_correction(db, id_)
+    assert row["status"] == "integrated"
+    assert row["integrated_commit"] == "abc123"
+    assert row["integrated_file"] == "agents/behaviors/yagni.md"
+
+
+def test_list_corrections_filters_by_status(tmp_path):
+    from lib.corrections import init_db, add_correction, list_corrections, update_status
+    db = tmp_path / "test.db"
+    init_db(db)
+    id1 = add_correction(db, "dev", "general", "gap1", "rule about migration one", "proj", "1")
+    id2 = add_correction(db, "dev", "general", "gap2", "rule about migration two", "proj", "2")
+    update_status(db, id2, "inactive")
+    active = list_corrections(db, status="active")
+    assert len(active) == 1
+    assert active[0]["id"] == id1
+
+
+def test_comment_already_saved(tmp_path):
+    from lib.corrections import init_db, add_correction, comment_already_saved
+    db = tmp_path / "test.db"
+    init_db(db)
+    add_correction(db, "dev", "general", "gap", "rule about migration", "proj", "1",
+                   source_comment_id="gh_comment_123")
+    assert comment_already_saved(db, "gh_comment_123") is True
+    assert comment_already_saved(db, "gh_comment_999") is False
+
+
+def test_list_corrections_agent_filter_includes_star(tmp_path):
+    """Corrections for agent '*' must appear when filtering by specific agent."""
+    from lib.corrections import init_db, add_correction, list_corrections
+    db = tmp_path / "test.db"
+    init_db(db)
+    add_correction(db, "chief-builder", "general", "gap1", "rule about planning context", "proj", "1")
+    add_correction(db, "*", "general", "gap2", "rule about global scope testing", "proj", "2")
+    add_correction(db, "dev", "general", "gap3", "rule about migration verification", "proj", "3")
+    results = list_corrections(db, agent="chief-builder", status="active")
+    ids = [r["id"] for r in results]
+    # chief-builder correction + '*' correction must appear, dev-only must not
+    assert any("planning" in r["rule"] for r in results)
+    assert any("global" in r["rule"] for r in results)
+    assert not any("migration" in r["rule"] for r in results)
