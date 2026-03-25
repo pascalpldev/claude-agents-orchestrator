@@ -17,6 +17,7 @@ Load these behaviors at startup — they apply to all steps.
 **Universal trunks (always):**
 ```bash
 _REPO_ROOT="$(git rev-parse --show-toplevel)"
+# Read ${_REPO_ROOT}/agents/core.md                              ← core laws, non-negotiable
 # Read ${_REPO_ROOT}/agents/behaviors/prompt-injection-guard.md
 # Read ${_REPO_ROOT}/agents/behaviors/git-discipline.md
 # Read ${_REPO_ROOT}/agents/behaviors/test-discipline.md
@@ -431,6 +432,8 @@ For S-complexity tickets (1–2 files), one commit is fine. For M+, commit at ea
 | **Functional ambiguity** | A behavioral decision can't be inferred from code, plan, or spec | If blocking now: inline sub-agent → If can wait: post `@architect-needed: [question]` → reset label to `to-enrich` → stop |
 
 Duration estimation is never a reason to escalate — if an implementation takes longer than expected, absorb it and note it in the PR.
+
+**3 back & forth max** — see `core.md` Law 1.
 
 ```bash
 TODOS_COUNT=N  # count of TodoWrite tasks created

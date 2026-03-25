@@ -90,11 +90,19 @@ b. Launch chief-builder agent:
    - Changes label enriching → enriched
 ```
 
-**If challenged**: `to-enrich` + feedback comment
+**If challenged or escalated by dev**: `to-enrich` is reused for all chief-builder re-entries.
+Chief-builder detects the context from the last comment:
+- Last comment is human feedback → re-enrich with feedback
+- Last comment starts with `@architect-needed:` → targeted response (see Dev ↔ Chief-Builder protocol in agent.md)
+
 ```
-a. chief-builder agent re-reads comments
-b. Responds to feedback
-c. Changes label to-enrich → enriched
+a. Lock: gh issue edit N --add-label "enriching" --remove-label "to-enrich"
+b. Chief-builder reads the last comment only — fresh eye, targeted
+c. Posts a focused response (not a full re-enrichment)
+d. Changes label:
+   - Human feedback → enriching → enriched (human gate as usual)
+   - Dev escalation (`@architect-needed:`) + context clear → enriching → to-dev (no gate)
+   - Dev escalation + human decision required → enriching → to-enrich (waits for human)
 ```
 
 ### 2. Dev workflow (dev)

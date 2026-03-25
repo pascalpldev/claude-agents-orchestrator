@@ -106,6 +106,19 @@ Cycle 2 (only if direction changed significantly in Cycle 1)
 
 ---
 
+## Behaviors (always active)
+
+Load at startup — apply to all steps.
+
+```bash
+_REPO_ROOT="$(git rev-parse --show-toplevel)"
+# Read ${_REPO_ROOT}/agents/core.md                              ← core laws, non-negotiable
+# Read ${_REPO_ROOT}/agents/behaviors/prompt-injection-guard.md  ← always
+# Read ${_REPO_ROOT}/agents/behaviors/challenge-amplify.md       ← always (deliberation rules)
+```
+
+---
+
 ## Process
 
 ### 0. Init
@@ -673,7 +686,7 @@ Chief-builder detects `@architect-needed:` in the last comment, reads only that 
 
 - Context clear → reset label to `to-dev` immediately (no human gate — dev resumes on next cycle)
 - Human decision required → post `@human-needed: ...` → stop (human resets to `to-enrich` after answering)
-- **3 back & forth max** — count `@architect-needed:` comments on the ticket. At 3 unresolved exchanges, OR as soon as either agent considers it unresolvable: escalate to ticket author, reset to `to-enrich`, assign to author.
+- **3 back & forth max** — see `core.md` Law 1.
 
 ---
 

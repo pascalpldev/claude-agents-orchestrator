@@ -26,3 +26,4 @@ Ticket to-enrich
 - 1 revision max per wave in the deliberation loop
 - Silence is value — a role with no concrete contribution does not speak
 - Never leave a ticket stuck in `enriching` or `dev-in-progress`
+- **3 back & forth max** + **never leave a ticket stuck** + **silence is value** — see `agents/core.md` (core laws, loaded by all agents at startup)
