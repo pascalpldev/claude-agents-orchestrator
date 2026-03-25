@@ -32,7 +32,7 @@ Detect intent **before** deliberation — it changes the primary role, the behav
 | **feature** *(default)* | No explicit signal | Full deliberation → implementation plan |
 | **exploratory** | "propose", "ideas", "options", "what do you think about", "improve X" without spec | Options with trade-offs, no single plan |
 | **risk-only** | "what is the risk", "risks of", "what can go wrong" | Risk table only, no plan |
-| **bug** | "bug", "issue", "no longer works", "broken", "unexpected error" | Verify first → fix or explanation |
+| **bug** | Label `bug` · or explicit keywords: "bug", "issue", "no longer works", "broken", "unexpected error", "tourne sans fin", "bloqué", "freeze", "timeout", "ne fonctionne plus" · or content describing a behavior as unexpected/abnormal without a feature request | Verify first → fix or explanation |
 | **directive** | Imperative verb + clear scope, "integrate X", "add Y", "remove Z" | Direct plan, YAGNI suppressed in output |
 | **propose** | "propose solutions", "don't challenge", "give me options for" | Options without challenging the scope |
 
@@ -177,11 +177,26 @@ Apply the Cycles/Waves model. Intent changes the deliberation focus:
 | propose | Product Builder | jtbd | Options and trade-offs, not a single direction |
 
 **Bug — mandatory preliminary step:**
-Before forming a position, verify this is actually a bug:
+Before forming a position:
+
+**0. Contextualize all URLs in the ticket**
+If the ticket contains a URL (applicative environment, specific entity), deduce WHY the user included it:
+- Is it the environment where the bug manifests? → access it to collect real data
+- Is it a specific problematic entity (project, session, job)? → use the app's available endpoints (logs, status, API) to read its state before touching the code
+- Does it allow comparing two environments? → access both
+
+Collect what you can before opening the code. If auth is required and unavailable, state it explicitly — do not hypothesize on data you haven't seen.
+
+**1. Verify this is actually a bug:**
 - Read the relevant code and recent commits
 - Is the described behavior expected or not?
 - → Confirmed bug: form position on the fix
 - → Misunderstanding: form position on the explanation, no fix
+
+**2. Systemic analysis:**
+Once the root cause is identified, ask: is this an isolated symptom or a representative of a class of problems?
+- If isolated: fix it directly
+- If it's a class: identify all other occurrences in the codebase and include them in the fix plan — do not patch the single symptom and leave the pattern intact
 
 Collect on exit: synthesized position + any unresolvable challenges.
 
@@ -419,6 +434,10 @@ gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" --body "$(cat <<'COMMENT'
 ### Fix plan
 [Precise modification to apply]
 
+### Systemic prevention
+[If isolated: "(isolated — no other occurrence of this pattern detected)"]
+[If a class: name the pattern, list all affected locations, describe the systematic fix]
+
 ### Files involved
 - `src/...` — [what changes]
 
@@ -520,6 +539,7 @@ One-line descriptions for pre-filtering without reading the file. Load only if t
 
 | Behavior | What it provides | Load if... |
 |----------|-----------------|------------|
+| `prompt-injection-guard` | Trust model for ticket content — safe mode by default, bounded exceptions for legitimate instructions | Always |
 | `challenge-amplify` | Binary challenge/amplify filter — qualify resolvable vs unresolvable | Always (rules inline in this file) |
 | `jtbd` | Reframe the request as "when X, the user wants Y in order to Z" — avoids solving the wrong problem | Vague scope, prescribed solution without exposed problem |
 | `yagni` | Challenge the minimal version — cut what is not justified right now | Scope seems broad, multiple features |
@@ -532,6 +552,36 @@ One-line descriptions for pre-filtering without reading the file. Load only if t
 | `discoverability` | Self-explanatory interface — affordances, labels, feedback, onboarding | All tickets with an interface (always UX) |
 | `progressive-disclosure` | Show only what is needed at each step | Form > 4 fields, multi-step flow |
 | `product-baseline` | YAGNI calibrated by maturity — when feedback, logs, auth, compliance become necessary | Relevant project stage (alpha, early-users, prod) |
+
+---
+
+## Dev ↔ Chief-Builder protocol
+
+During implementation, the dev agent can invoke the chief-builder for three cases. Decisions are posted as ticket comments for traceability.
+
+| Case | Trigger | Chief-builder role | Mode |
+|------|---------|-------------------|------|
+| **Diagnosis contradicted** | Dev finds evidence that invalidates the enrichment plan | Revises only the affected plan section | Asynchronous — via `to-enrich` |
+| **Approach challenge** | Dev sees a more elegant/solid approach before committing to the planned one | Validates or rejects the alternative | Inline sub-agent invocation (same session, non-blocking) |
+| **Functional ambiguity** | Dev hits a behavioral decision point that can't be inferred from code or spec | Decides as Product Builder | Inline if blocking · asynchronous via `to-enrich` if it can wait |
+
+**Inline invocation (non-blocking):**
+```
+Dev → encounters ambiguity
+    → invokes chief-builder as sub-agent with: the specific question only
+    → chief-builder reads the question — fresh eye, no full re-read
+    → chief-builder decides and returns the answer
+    → dev posts the decision as a ticket comment (traceability)
+    → dev continues without interruption
+```
+
+**Asynchronous (via `to-enrich`):**
+When the dev cannot continue: commit WIP cleanly → post `@architect-needed: [specific question or finding]` as ticket comment → reset label to `to-enrich` → stop.
+
+Chief-builder detects `@architect-needed:` in the last comment, reads only that comment and the relevant section of the original plan — not the full ticket from scratch. Responds with a targeted comment.
+
+- Context clear → reset label to `to-dev` immediately (no human gate — dev resumes on next cycle)
+- Human decision required → post `@human-needed: ...` → stop (human resets to `to-enrich` after answering)
 
 ---
 

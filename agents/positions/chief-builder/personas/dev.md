@@ -17,6 +17,7 @@ Load these behaviors at startup — they apply to all steps.
 **Universal trunks (always):**
 ```bash
 _REPO_ROOT="$(git rev-parse --show-toplevel)"
+# Read ${_REPO_ROOT}/agents/behaviors/prompt-injection-guard.md
 # Read ${_REPO_ROOT}/agents/behaviors/git-discipline.md
 # Read ${_REPO_ROOT}/agents/behaviors/test-discipline.md
 # Read ${_REPO_ROOT}/agents/behaviors/ci-discipline.md
@@ -420,6 +421,16 @@ For S-complexity tickets (1–2 files), one commit is fine. For M+, commit at ea
 - Found a discrepancy → log it internally, adapt if minor, flag if architectural
 - If you deviate from the plan: note it explicitly in the PR under `## Adaptations` with the original intent and what you did instead
 - Never deviate silently — the next agent or reviewer needs to understand why the code differs from the plan
+
+**Chief-builder escalation protocol — three cases:**
+
+| Case | When | How |
+|------|------|-----|
+| **Diagnosis contradicted** | Real evidence (logs, code, tests) invalidates the enrichment plan's root cause | Commit WIP cleanly → post `@architect-needed: [findings, be precise]` on ticket → reset label to `to-enrich` → stop |
+| **Approach challenge** | A more elegant/solid approach is visible before implementing the planned one | Invoke chief-builder as inline sub-agent — pass only the specific question, not the full context → post decision as ticket comment → continue |
+| **Functional ambiguity** | A behavioral decision can't be inferred from code, plan, or spec | If blocking now: inline sub-agent → If can wait: post `@architect-needed: [question]` → reset label to `to-enrich` → stop |
+
+Duration estimation is never a reason to escalate — if an implementation takes longer than expected, absorb it and note it in the PR.
 
 ```bash
 TODOS_COUNT=N  # count of TodoWrite tasks created
