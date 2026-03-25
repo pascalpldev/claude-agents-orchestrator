@@ -7,9 +7,14 @@
 
 # ── Deployment ────────────────────────────────────────────────────────────────
 deploy:
-  platform: railway       # Options: railway | render | vercel | none
-  project: my-project     # Project name on the platform
-  service: web            # Service / app name within the project
+  platform: railway-auto  # Options:
+                          #   railway-auto → Railway auto-deploy on push, URL from bot comment (most common)
+                          #   railway      → Railway MCP-triggered deploy (requires MCP + project/service)
+                          #   vercel       → Vercel auto-deploy, URL from GitHub status checks
+                          #   render       → Render auto-deploy, URL from render[bot] comment
+                          #   none         → no deploy, skip smoke test
+  project: my-project     # Railway only (platform: railway) — project name
+  service: web            # Railway only (platform: railway) — service name
 
 # ── GitHub ────────────────────────────────────────────────────────────────────
 # github:
