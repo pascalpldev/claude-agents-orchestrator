@@ -32,6 +32,7 @@ gh issue create --title "Feature: ..." --label "to-enrich"
 - **`/cao-process-tickets`** — Poll tickets and process them (enrichment → dev → test → merge)
 - **`/cao-status`** — Instant snapshot: active tickets, running agents, recent logs
 - **`/cao-show-logs`** — Detailed history of agent runs
+- **`/cao-corrections`** — Manage behavioral corrections: list, activate/deactivate, promote to core
 
 ### Templates (Per-project)
 
