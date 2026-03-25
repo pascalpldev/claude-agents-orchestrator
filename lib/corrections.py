@@ -238,3 +238,25 @@ def comment_already_saved(db_path: Path, comment_id: str) -> bool:
         return row is not None
     finally:
         conn.close()
+
+
+def load_corrections(agent: str, project_db: Path, global_db: Path) -> str:
+    """
+    Load active corrections for agent from both DBs.
+    Returns formatted constraints block, or empty string if none.
+    """
+    rows = []
+    for db in [project_db, global_db]:
+        rows += list_corrections(db, agent=agent, status="active")
+
+    if not rows:
+        return ""
+
+    lines = ["## Active corrections (loaded at startup)", ""]
+    for row in rows:
+        lines.append(f"[{row['class']} — #{row['id']} | {row['agent']}]")
+        if row.get("gap"):
+            lines.append(f"Gap: {row['gap']}")
+        lines.append(f"Rule: {row['rule']}")
+        lines.append("")
+    return "\n".join(lines).rstrip()

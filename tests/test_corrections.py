@@ -321,3 +321,53 @@ def test_list_corrections_agent_filter_includes_star(tmp_path):
     assert any("planning" in r["rule"] for r in results)
     assert any("global" in r["rule"] for r in results)
     assert not any("migration" in r["rule"] for r in results)
+
+
+def test_load_corrections_empty_returns_empty_string(tmp_path):
+    from lib.corrections import init_db, load_corrections
+    project_db = tmp_path / "project.db"
+    global_db = tmp_path / "global.db"
+    init_db(project_db)
+    init_db(global_db)
+    result = load_corrections("chief-builder", project_db, global_db)
+    assert result == ""
+
+
+def test_load_corrections_formats_block(tmp_path):
+    from lib.corrections import init_db, add_correction, load_corrections
+    project_db = tmp_path / "project.db"
+    global_db = tmp_path / "global.db"
+    init_db(project_db)
+    init_db(global_db)
+    add_correction(project_db, "chief-builder", "project-pattern",
+                   "gap text", "always check ratelimit", "instavid", "7")
+    result = load_corrections("chief-builder", project_db, global_db)
+    assert "## Active corrections (loaded at startup)" in result
+    assert "project-pattern" in result
+    assert "always check ratelimit" in result
+
+
+def test_load_corrections_skips_inactive(tmp_path):
+    from lib.corrections import init_db, add_correction, update_status, load_corrections
+    project_db = tmp_path / "project.db"
+    global_db = tmp_path / "global.db"
+    init_db(project_db); init_db(global_db)
+    id_ = add_correction(project_db, "chief-builder", "project-pattern",
+                         "gap", "rule about migration check", "proj", "1")
+    update_status(project_db, id_, "inactive")
+    result = load_corrections("chief-builder", project_db, global_db)
+    assert result == ""
+
+
+def test_load_corrections_merges_both_dbs(tmp_path):
+    from lib.corrections import init_db, add_correction, load_corrections
+    project_db = tmp_path / "project.db"
+    global_db = tmp_path / "global.db"
+    init_db(project_db); init_db(global_db)
+    add_correction(project_db, "chief-builder", "project-pattern",
+                   "gap1", "rule about rate limits check", "proj", "1")
+    add_correction(global_db, "*", "general",
+                   "gap2", "rule about first user question", "global", "manual")
+    result = load_corrections("chief-builder", project_db, global_db)
+    assert "project-pattern" in result
+    assert "general" in result
