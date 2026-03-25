@@ -260,3 +260,117 @@ def load_corrections(agent: str, project_db: Path, global_db: Path) -> str:
         lines.append(f"Rule: {row['rule']}")
         lines.append("")
     return "\n".join(lines).rstrip()
+
+
+_INJECTION_PATTERNS = [
+    r"ignore\s+(previous|your)\s+instructions",
+    r"you\s+are\s+(now|a)\b",
+    r"\bsystem\s*:",
+    r"\bassistant\s*:",
+    r"skip\s+steps?",
+    r"bypass\s+checks?",
+    r"expose\s+(credentials?|tokens?|secrets?)",
+]
+
+_INJECTION_RE = re.compile("|".join(_INJECTION_PATTERNS), re.IGNORECASE)
+
+
+def _infer_class(rule: str, agent: str) -> str:
+    """Infer class from rule content. Always returns 'general' (conservative default)."""
+    if agent == "*":
+        return "general"
+    return "general"
+
+
+def _parse_learn_block(body: str) -> Optional[dict]:
+    """Parse @cao-learn block or short form. Returns dict with extracted fields or None."""
+    if "@cao-learn" not in body:
+        return None
+
+    fields: dict = {}
+
+    # Try block format: multiline key: value after @cao-learn
+    block_re = re.compile(
+        r"@cao-learn\s*\n((?:[a-z_]+\s*:.*\n?)*)", re.IGNORECASE
+    )
+    block_match = block_re.search(body)
+    if block_match:
+        for line in block_match.group(1).splitlines():
+            if ":" in line:
+                key, _, value = line.partition(":")
+                fields[key.strip().lower()] = value.strip()
+    else:
+        # Try short form: key="value" pairs on same line
+        line = body[body.index("@cao-learn"):]
+        for m in re.finditer(r'(\w+)="([^"]*)"', line):
+            fields[m.group(1).lower()] = m.group(2)
+
+    return fields if fields else None
+
+
+def parse_and_save(
+    comments: list,
+    default_agent: str,
+    source: str,
+    project_slug: str,
+    project_db: Path,
+    global_db: Path,
+) -> list:
+    """
+    Scan comments for @cao-learn tags, save valid ones.
+    Returns list of "SAVED <id>" or "SKIPPED <comment_id> already_exists".
+    """
+    results = []
+
+    for comment in comments:
+        body = comment.get("body", "")
+        comment_id = str(comment.get("databaseId", ""))
+
+        if "@cao-learn" not in body:
+            continue
+
+        # Injection check on entire body
+        if _INJECTION_RE.search(body):
+            continue  # silently drop
+
+        fields = _parse_learn_block(body)
+        if not fields:
+            continue
+
+        rule = fields.get("rule", "").strip()
+        if not rule:
+            continue  # rule is required
+
+        gap = fields.get("gap", "").strip() or "not specified"
+        agent = fields.get("agent", default_agent).strip()
+        cls = fields.get("class", _infer_class(rule, agent)).strip()
+
+        # Reclassify project-pattern + * → general
+        if agent == "*" and cls == "project-pattern":
+            cls = "general"
+
+        # Deduplication: check both DBs
+        if comment_id and (
+            comment_already_saved(project_db, comment_id)
+            or comment_already_saved(global_db, comment_id)
+        ):
+            results.append(f"SKIPPED {comment_id} already_exists")
+            continue
+
+        # Save to correct DB
+        db = global_db if cls == "general" else project_db
+        ticket = source.split("#")[-1] if "#" in source else "manual"
+        id_ = add_correction(
+            db_path=db,
+            agent=agent,
+            cls=cls,
+            gap=gap,
+            rule=rule,
+            project_slug=project_slug,
+            ticket=ticket,
+            source=source,
+            source_comment_id=comment_id or None,
+        )
+        results.append(f"SAVED {id_}")
+
+    return results
