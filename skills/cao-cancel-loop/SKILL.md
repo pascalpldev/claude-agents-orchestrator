@@ -2,30 +2,58 @@
 name: cao-cancel-loop
 description: |
   Cancel an active cao-process-tickets loop.
-  Deletes the CronCreate task(s) created by /cao-process-tickets --loop.
+  Writes a stop signal file that the loop detects at the start of its next iteration,
+  after the current ticket finishes. Graceful — never interrupts a running agent.
 argument-hint: "[chief-builder|dev|all]"
 allowed-tools: [Bash]
 ---
 
 # /cao-cancel-loop — Cancel an active loop
 
-Stops the scheduled polling started by `/cao-process-tickets --loop`.
+Stops the loop polling started by `/cao-process-tickets --loop`.
+Graceful: the current ticket always finishes before the loop exits.
 
 ## What it does
 
-Parse `$ARGUMENTS` to determine which cron to cancel:
-- No argument or `all` → cancel all `cao-process-*` crons
-- `chief-builder` → cancel `cao-process-chief-builder`
-- `dev` → cancel `cao-process-dev`
+Parse `$ARGUMENTS`:
+- No argument or `all` → match all `loop-*.json` files
+- `chief-builder`       → match `loop-chief-builder-*.json`
+- `dev`                 → match `loop-dev-*.json`
 
-Use `CronDelete` to remove the matching task(s), then confirm:
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+LOCKS="${REPO_ROOT}/.locks"
 
-```
-✅ Loop cancelled: cao-process-{ROLE}
-   Run /cao-process-tickets [role] --loop to restart.
-```
+# Determine glob pattern
+case "${ARGUMENTS:-all}" in
+  chief-builder) PATTERN="loop-chief-builder-*.json" ;;
+  dev)           PATTERN="loop-dev-*.json" ;;
+  *)             PATTERN="loop-*.json" ;;
+esac
 
-If no matching cron found:
-```
-ℹ️  No active cao loop found for role: {ROLE}
+FOUND=0
+for f in ${LOCKS}/${PATTERN}; do
+  [ -f "$f" ] || continue
+  FOUND=1
+
+  PID=$(python3 -c "import json; print(json.load(open('$f'))['pid'])" 2>/dev/null)
+  ROLE=$(python3 -c "import json; print(json.load(open('$f'))['role'])" 2>/dev/null)
+
+  # Verify PID is alive
+  if ! kill -0 "$PID" 2>/dev/null; then
+    echo "⚠️  Loop pid $PID is already dead — cleaning up"
+    rm -f "$f"
+    continue
+  fi
+
+  # Write stop signal (same name, .stop extension)
+  STOP="${f%.json}.stop"
+  touch "$STOP"
+  echo "✅ Stop signal sent to loop ${ROLE} (pid: ${PID})"
+  echo "   The loop will stop after the current ticket finishes."
+done
+
+if [ "$FOUND" -eq 0 ]; then
+  echo "ℹ️  No active cao loop found for role: ${ARGUMENTS:-all}"
+fi
 ```

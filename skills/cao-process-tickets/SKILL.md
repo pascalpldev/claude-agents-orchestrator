@@ -203,47 +203,82 @@ Always output a brief summary:
 
 ### Loop scheduling — drain then sleep
 
-If LOOP = true, apply the **drain then sleep** logic:
+If LOOP = true, apply the **drain then sleep** logic.
 
+**Startup (once, before the first iteration):**
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+LOOP_PID=$$
+LOOP_FILE="${REPO_ROOT}/.locks/loop-${ROLE}-${LOOP_PID}.json"
+STOP_FILE="${REPO_ROOT}/.locks/loop-${ROLE}-${LOOP_PID}.stop"
+
+python3 - <<PYEOF
+import json, time
+from pathlib import Path
+Path("${REPO_ROOT}/.locks").mkdir(exist_ok=True)
+Path("${LOOP_FILE}").write_text(json.dumps({
+    "pid": ${LOOP_PID},
+    "role": "${ROLE}",
+    "interval": ${INTERVAL},
+    "started_at": time.time(),
+    "last_heartbeat_ts": time.time(),
+    "current_ticket": None,
+    "state": "idle"
+}, indent=2))
+PYEOF
+```
+
+**Start of each iteration:**
+
+1. Update `last_heartbeat_ts` in `$LOOP_FILE`
+2. Check if `$STOP_FILE` exists:
+```bash
+if [ -f "$STOP_FILE" ]; then
+  rm -f "$LOOP_FILE" "$STOP_FILE"
+  echo "🛑 Loop stopped gracefully (role: ${ROLE}, pid: ${LOOP_PID})"
+  exit 0
+fi
+```
+
+**Before spawning an agent** — update `$LOOP_FILE`:
+```python
+{ "current_ticket": N, "state": "waiting_agent" }
+```
+
+**Drain-then-sleep logic:**
 ```
 ANY_PROCESSED = (at least one ticket was processed in this run)
 
 If ANY_PROCESSED = true:
-  → Re-launch immediately with no delay
-  → CronCreate(
-      taskId: "cao-process-{ROLE}",
-      cronExpression: "* * * * *",     ← every minute (immediate in cron terms)
-      prompt: "/cao-process-tickets {ROLE} --loop --interval {INTERVAL}"
-    )
+  → update LOOP_FILE: { "current_ticket": null, "state": "idle" }
+  → loop immediately (no sleep)
   → Output: "🔁 Ticket processed — immediate re-poll"
 
 If ANY_PROCESSED = false (queue empty):
-  → Sleep INTERVAL minutes
-  → CronCreate(
-      taskId: "cao-process-{ROLE}",
-      cronExpression: "*/{INTERVAL} * * * *",
-      prompt: "/cao-process-tickets {ROLE} --loop --interval {INTERVAL}"
-    )
+  → update LOOP_FILE: { "state": "idle" }
+  → sleep INTERVAL minutes
   → Output: "💤 Queue empty — next poll in {INTERVAL}min"
 ```
 
-**Principle**: the agent drains the queue as long as there is work, then sleeps only when it finds nothing. Zero unnecessary polls between consecutive tickets.
+**Principle**: drain the queue as long as there is work, sleep only when idle.
 
-After CronCreate:
-- If success, log:
-  ```
-  RUN_ID = current timestamp in format YYYYMMDD_HHMMSS_loop
-  Run: python3 lib/logger.py "{RUN_ID}" "worker" "null" "worker_start" "ok" "loop scheduled" '{"role":"{ROLE}","interval":{INTERVAL},"any_processed":{ANY_PROCESSED}}'
-  ```
-- If failure, log:
-  ```
-  Run: python3 lib/logger.py "{RUN_ID}" "worker" "null" "schedule_error" "error" "CronCreate failed" '{"role":"{ROLE}"}'
-  ```
-
-Then output:
+**Graceful exit (stop signal or fatal error):**
+```bash
+rm -f "$LOOP_FILE" "$STOP_FILE"
 ```
-⏱️  Next run: [immediate | in {INTERVAL}min] (cron: cao-process-{ROLE})
-   Stop with: /cancel-cao or ask Claude to delete cron "cao-process-{ROLE}"
+
+**Logging:**
+```bash
+RUN_ID=$(date -u +"%Y%m%d_%H%M%S")_loop
+python3 lib/logger.py "$RUN_ID" "worker" "null" "worker_start" "ok" "loop iteration" \
+  "{\"role\":\"${ROLE}\",\"interval\":${INTERVAL},\"any_processed\":${ANY_PROCESSED}}"
+```
+
+**Output at end of each iteration:**
+```
+⏱️  Next run: [immediate | in {INTERVAL}min] (loop pid: {LOOP_PID})
+   Stop with: /cao-cancel-loop [role]
 ```
 
 ## Example sessions
@@ -258,18 +293,18 @@ Then output:
 **Loop — multiple tickets waiting (drain):**
 ```
 /cao-process-tickets --loop
-→ 🔄 Loop mode — role: all, interval: 5min
+→ 🔄 Loop mode — role: all, interval: 5min (pid: 1234)
 
-run 1: processes #5 (to-enrich) → ✅ Processed: #5 → 🔁 immediate re-poll
-run 2: processes #3 (to-dev)    → ✅ Processed: #3 → 🔁 immediate re-poll
-run 3: processes #1 (godeploy)  → ✅ Processed: #1 → 🔁 immediate re-poll
-run 4: nothing                  → 💤 queue empty → ⏱️ next poll in 5min
+iter 1: processes #5 (to-enrich) → ✅ Processed: #5 → 🔁 immediate re-poll
+iter 2: processes #3 (to-dev)    → ✅ Processed: #3 → 🔁 immediate re-poll
+iter 3: processes #1 (godeploy)  → ✅ Processed: #1 → 🔁 immediate re-poll
+iter 4: nothing                  → 💤 queue empty → ⏱️ next poll in 5min
 ```
 
 **Loop — empty queue at startup:**
 ```
 /cao-process-tickets --loop
-→ 🔄 Loop mode — role: all, interval: 5min
+→ 🔄 Loop mode — role: all, interval: 5min (pid: 1234)
 → Nothing to process
 → 💤 queue empty — ⏱️ next poll in 5min
 ```
@@ -277,9 +312,19 @@ run 4: nothing                  → 💤 queue empty → ⏱️ next poll in 5mi
 **Loop — custom interval:**
 ```
 /cao-process-tickets dev --loop --interval 10
-→ 🔄 Loop mode — role: dev, interval: 10min
+→ 🔄 Loop mode — role: dev, interval: 10min (pid: 5678)
 → Nothing to process
 → 💤 queue empty — ⏱️ next poll in 10min
+```
+
+**Loop — graceful stop:**
+```
+[Terminal B] /cao-cancel-loop
+→ ✅ Stop signal sent to loop all (pid: 1234)
+→    The loop will stop after the current ticket finishes.
+
+[Terminal A, after current ticket done]
+→ 🛑 Loop stopped gracefully (role: all, pid: 1234)
 ```
 
 ## Implementation notes
