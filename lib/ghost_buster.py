@@ -241,10 +241,65 @@ def _cleanup_ghost(
     )
 
 
+# ── Loop ghost detection ──────────────────────────────────────────────────────
+
+def bust_ghost_loops(locks_dir: Path, dry_run: bool = False) -> int:
+    """Detect and clean up loop-*.json files whose PID is dead.
+
+    Returns count of ghost loops cleaned (or detected if dry_run).
+    If current_ticket is set, the associated ticket agent is handled
+    independently by the normal ghost detection flow.
+    """
+    if not locks_dir.exists():
+        return 0
+
+    prefix = "[DRY RUN] " if dry_run else ""
+    cleaned = 0
+
+    for f in sorted(locks_dir.glob("loop-*.json")):
+        try:
+            data = json.loads(f.read_text())
+        except (json.JSONDecodeError, OSError):
+            if not dry_run:
+                f.unlink(missing_ok=True)
+            cleaned += 1
+            continue
+
+        pid = data.get("pid")
+        if not pid:
+            if not dry_run:
+                f.unlink(missing_ok=True)
+            cleaned += 1
+            continue
+
+        if _pid_alive(pid):
+            continue  # loop still running — do not touch
+
+        role = data.get("role", "unknown")
+        current_ticket = data.get("current_ticket")
+        print(f"{prefix}👻 Ghost loop: {f.name} (role={role}, pid={pid})")
+        if current_ticket:
+            print(f"   Was waiting for ticket #{current_ticket}"
+                  f" — handled by normal ticket ghost detection")
+
+        if not dry_run:
+            f.unlink(missing_ok=True)
+            stop = f.with_name(f.stem + ".stop")
+            stop.unlink(missing_ok=True)
+            print(f"   ✅ Loop ghost cleaned")
+
+        cleaned += 1
+
+    return cleaned
+
+
 # ── Main entry ────────────────────────────────────────────────────────────────
 
 def run(locks_dir: Path, owner: str, repo: str, dry_run: bool = False) -> int:
     """Run ghost buster. Returns number of ghosts cleaned (or detected if dry_run)."""
+    # Clean up dead loop processes first (before ticket agent detection)
+    loop_ghosts = bust_ghost_loops(locks_dir, dry_run)
+
     local_ghosts  = bust_local_ghosts(locks_dir, owner, repo, dry_run)
     remote_ghosts = bust_remote_ghosts(owner, repo, dry_run)
 
@@ -255,7 +310,7 @@ def run(locks_dir: Path, owner: str, repo: str, dry_run: bool = False) -> int:
 
     prefix = "[DRY RUN] " if dry_run else ""
     if all_ghosts:
-        print(f"\n{prefix}👻 Ghost buster — {len(all_ghosts)} ghost(s) detected:")
+        print(f"\n{prefix}👻 Ghost buster — {len(all_ghosts)} agent ghost(s) detected:")
         for g in all_ghosts:
             src = g["source"]
             print(
@@ -263,10 +318,10 @@ def run(locks_dir: Path, owner: str, repo: str, dry_run: bool = False) -> int:
                 f"  {g['reason']}  [{src}]"
             )
         print()
-    else:
+    elif loop_ghosts == 0:
         print(f"{prefix}👻 Ghost buster — no ghosts detected.")
 
-    return len(all_ghosts)
+    return len(all_ghosts) + loop_ghosts
 
 
 if __name__ == "__main__":

@@ -369,21 +369,41 @@ Three modes — detect in this order:
 
 **Mode B — resume-crash** : `LAST_MILESTONE` is non-empty AND `EXISTING_BRANCH` found AND no "PR ready:" comment exists.
 
-```
+```bash
 → RESUME MODE
-  Log: _log "$RUN_ID" "dev" "$TICKET_N" "resume" "ok" \
-         "resuming from remote branch" "{\"branch\":\"$EXISTING_BRANCH\"}"
+
+# Verify the branch actually exists on remote before committing to resume
+git fetch origin 2>/dev/null
+BRANCH_EXISTS=$(git ls-remote --heads origin "$EXISTING_BRANCH" | grep -c "$EXISTING_BRANCH" || true)
+
+if [ "$BRANCH_EXISTS" -eq 0 ]; then
+  # Milestone exists but branch is gone — comment and fall back to Mode C
+  LAST_MILESTONE_EXCERPT=$(echo "$LAST_MILESTONE" | head -5)
+  gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
+    --body "⚠️ **Resume attempted** — branch \`${EXISTING_BRANCH}\` not found on remote.
+Restarting fresh. Previous milestone context:
+\`\`\`
+${LAST_MILESTONE_EXCERPT}
+\`\`\`"
+  _log "$RUN_ID" "dev" "$TICKET_N" "resume_fallback" "warning" \
+    "branch not found on remote — falling back to fresh start" \
+    "{\"missing_branch\":\"$EXISTING_BRANCH\"}"
+  # Fall through to Mode C below
+else
+  _log "$RUN_ID" "dev" "$TICKET_N" "resume" "ok" \
+    "resuming from remote branch" "{\"branch\":\"$EXISTING_BRANCH\"}"
 
   1. Read LAST_MILESTONE content — extract "Phase:" and "Next:" lines
   2. git checkout -b "$EXISTING_BRANCH" --track "origin/$EXISTING_BRANCH"
-  3. Skip step 2 (branch creation) — branch already exists on remote
+  3. Skip step 2 (branch creation + claim push) — branch already on remote = claim already held
   4. Continue from the "Next:" line of LAST_MILESTONE
 
   Note: any uncommitted work from the previous session is lost (different machine
   principle). The "Next:" line in the milestone is the recovery anchor.
+fi
 ```
 
-**Mode C — fresh start** : no milestones, no remote branch → continue normally from step 2.
+**Mode C — fresh start** : no milestones, no remote branch (or Mode B fallback) → continue normally from step 2.
 
 ```bash
 _log "$RUN_ID" "dev" "$TICKET_N" "context_loaded" "ok" \
@@ -418,21 +438,45 @@ _log "$RUN_ID" "dev" "$TICKET_N" "plan_validated" "ok" \
   "plan validated against codebase" "{\"valid\":$PLAN_VALID}"
 ```
 
-### 2. Create the feature branch
+### 2. Claim the ticket (branch + remote push)
+
+`short-name` = 2-4 words from the ticket title, kebab-case.
+
+**Mode C (fresh start) only** — Mode A and Mode B skip this step entirely.
 
 ```bash
 git checkout dev
 git pull origin dev
-git checkout -b feat/ticket-<N>-<short-name>
-```
+git checkout -b "feat/ticket-${TICKET_N}-${SHORT_NAME}"
 
-`short-name` = 2-4 words from the ticket title, kebab-case.
+_init_lock_metadata  # write .lock + start heartbeat &
 
-```bash
-_log "$RUN_ID" "dev" "$TICKET_N" "branch_created" "ok" \
-  "branch created" "{\"branch\":\"feat/ticket-${TICKET_N}-${SHORT_NAME}\"}"
+# Push an empty commit immediately — this is the atomic ownership test.
+# If rejected, another agent already holds this branch → release the claim.
+git commit --allow-empty \
+  -m "chore: claim ticket #${TICKET_N} — $(date -u +%Y-%m-%dT%H:%MZ)"
 
-_init_lock_metadata  # register PID + start times in lock file
+git push origin "feat/ticket-${TICKET_N}-${SHORT_NAME}"
+PUSH_EXIT=$?
+
+if [ $PUSH_EXIT -ne 0 ]; then
+  _log "$RUN_ID" "dev" "$TICKET_N" "claim_lost" "error" \
+    "push rejected — branch already exists on remote" "{}"
+
+  gh issue comment "$TICKET_N" --repo "$OWNER/$REPO" \
+    --body "⚠️ **Claim lost** — branch \`feat/ticket-${TICKET_N}-${SHORT_NAME}\` already exists on remote.
+Releasing ticket back to queue."
+
+  kill "$_HEARTBEAT_PID" 2>/dev/null || true
+  rm -f "${_LOCK_FILE}"
+  gh issue edit "$TICKET_N" --repo "$OWNER/$REPO" \
+    --remove-label "dev-in-progress" --add-label "to-dev"
+  exit 0
+fi
+
+_log "$RUN_ID" "dev" "$TICKET_N" "claim_established" "ok" \
+  "branch pushed — claim complete" \
+  "{\"branch\":\"feat/ticket-${TICKET_N}-${SHORT_NAME}\"}"
 ```
 
 ### 3. Implement
